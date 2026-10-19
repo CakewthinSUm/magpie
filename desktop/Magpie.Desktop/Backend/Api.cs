@@ -203,8 +203,87 @@ public sealed class ExcludedJson
 public sealed class GatewayJson
 {
     public string Url { get; set; } = "";
-    public bool On { get; set; }
-    public string Key { get; set; } = "";
+    public bool Lan { get; set; }
+    public List<string> LanUrls { get; set; } = [];
+    /// <summary>MAGPIE_PUBLIC_URL when it is one of the LAN addresses.</summary>
+    public string PublicUrl { get; set; } = "";
+    /// <summary>MAGPIE_ADDR puts it beyond loopback: every caller needs a key.</summary>
+    public bool OnNetwork { get; set; }
+    public bool Running { get; set; }
+    /// <summary>This process serves it.</summary>
+    public bool Mine { get; set; }
+    public string Version { get; set; } = "";
+    /// <summary>Another magpie serves it, and it is older than this one.</summary>
+    public bool Older { get; set; }
+    public int Models { get; set; }
+    public List<GatewayCallJson> Calls { get; set; } = [];
+}
+
+/// <summary>gateway.Call as the Gateway page's recent calls list it, without
+/// the bodies, which GET /api/gateway/call reads when a row is opened.</summary>
+public sealed class GatewayCallJson
+{
+    public ulong Id { get; set; }
+    public DateTimeOffset Time { get; set; }
+    public string Agent { get; set; } = "";
+    public string Model { get; set; } = "";
+    public string Provider { get; set; } = "";
+    public string From { get; set; } = "";
+    public string To { get; set; } = "";
+    public int Status { get; set; }
+    public long Ms { get; set; }
+    public long Ttft { get; set; }
+    public string Error { get; set; } = "";
+}
+
+/// <summary>GET /api/gateway/call: one call's wire bodies.</summary>
+public sealed class GatewayCallBodyJson
+{
+    public string RequestBody { get; set; } = "";
+    public string ResponseBody { get; set; } = "";
+    public bool RequestTruncated { get; set; }
+    public bool ResponseTruncated { get; set; }
+}
+
+// ---- /api/caller-keys (caller_keys.go, keyRow, budget.Status) ----
+
+public sealed class CallerKeysJson
+{
+    public List<CallerKeyJson> Keys { get; set; } = [];
+    public Dictionary<string, string> AccountNames { get; set; } = [];
+    /// <summary>The new key's secret, from add-key and rotate-key only.</summary>
+    public string Secret { get; set; } = "";
+}
+
+public sealed class CallerKeyJson
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public bool Off { get; set; }
+    public string Masked { get; set; } = "";
+    /// <summary>What it has used of its first limit; UsedAll has each.</summary>
+    public KeyUsageJson? Used { get; set; }
+    public List<KeyUsageJson> UsedAll { get; set; } = [];
+}
+
+/// <summary>budget.Status: what a key has used of one of its limits.</summary>
+public sealed class KeyUsageJson
+{
+    public string Period { get; set; } = "";
+    public int Days { get; set; }
+    public int Hours { get; set; }
+    public DateTimeOffset Start { get; set; }
+    public DateTimeOffset Reset { get; set; }
+    public int Calls { get; set; }
+    public long Tokens { get; set; }
+    public double Cost { get; set; }
+    public int InFlight { get; set; }
+    public long TokenLimit { get; set; }
+    public double CostLimit { get; set; }
+    public long TokensLeft { get; set; }
+    public double CostLeft { get; set; }
+    /// <summary>The key is refused until Reset.</summary>
+    public bool Spent { get; set; }
 }
 
 public sealed class PluginSubJson
@@ -784,4 +863,7 @@ public sealed class SettingsFullJson
     public string? GithubTokenMask { get; set; }
     public string? GithubTokenFrom { get; set; }
     public string? Notice { get; set; }
+    /// <summary>An agent beyond loopback that couldn't be set again with the
+    /// sharing key when sharing changed (agent.Rekey).</summary>
+    public string? Rekeyed { get; set; }
 }

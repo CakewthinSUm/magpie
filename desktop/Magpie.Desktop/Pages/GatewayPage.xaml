@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="Magpie.Desktop.Pages.GatewayPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Magpie.Desktop.Pages">
+
+    <!-- The gateway as a Windows app lays it out: whether it runs and at
+         which address, how a client connects in each of the four APIs, the
+         caller keys with their switches and usage, and the calls it served
+         lately, each with its bodies a fold away. -->
+    <Grid Padding="32,24,32,0" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- The title, with sharing on the row above it: the page's content
+             is as wide as the window allows, and a switch beside a long
+             address would be pushed off a narrow one. -->
+        <StackPanel Grid.Row="0" Spacing="4">
+            <Grid>
+                <TextBlock Text="Gateway" Style="{ThemeResource TitleTextBlockStyle}" />
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="Share on local network" VerticalAlignment="Center" />
+                    <ToggleSwitch x:Name="Share" OnContent="" OffContent="" MinWidth="0"
+                                  Toggled="Share_Toggled" />
+                </StackPanel>
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <ProgressRing x:Name="Busy" IsActive="False" Width="16" Height="16"
+                              VerticalAlignment="Center" />
+                <TextBlock x:Name="HeaderUrl" FontFamily="Consolas" VerticalAlignment="Center"
+                           IsTextSelectionEnabled="True" />
+                <Button Content="Copy" Click="CopyUrl_Click" Padding="8,2" VerticalAlignment="Center" />
+                <TextBlock x:Name="Status" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </StackPanel>
+
+        <InfoBar x:Name="Notice" Grid.Row="1" IsOpen="False" IsClosable="False" />
+
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,0,24">
+            <StackPanel Spacing="16">
+
+                <Border Padding="16,12" CornerRadius="8"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid Width="12" Height="20" VerticalAlignment="Top">
+                            <Ellipse x:Name="DotRunning" Width="10" Height="10" Margin="0,5,0,0"
+                                     HorizontalAlignment="Left" VerticalAlignment="Top"
+                                     Fill="{ThemeResource SystemFillColorSuccessBrush}" />
+                            <Ellipse x:Name="DotOlder" Width="10" Height="10" Margin="0,5,0,0"
+                                     HorizontalAlignment="Left" VerticalAlignment="Top"
+                                     Fill="{ThemeResource SystemFillColorCautionBrush}"
+                                     Visibility="Collapsed" />
+                            <Ellipse x:Name="DotOff" Width="10" Height="10" Margin="0,5,0,0"
+                                     HorizontalAlignment="Left" VerticalAlignment="Top"
+                                     Fill="{ThemeResource SystemFillColorCriticalBrush}"
+                                     Visibility="Collapsed" />
+                        </Grid>
+                        <StackPanel Grid.Column="1" Spacing="2">
+                            <TextBlock x:Name="StateWord" FontSize="15" FontWeight="SemiBold" />
+                            <TextBlock x:Name="StateLine" FontSize="12" Opacity="0.7"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Connect: the address a client points at, the key it sends,
+                     and one request per API, in the shell this computer has. -->
+                <Border Padding="16,12" CornerRadius="8"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="Connect" FontSize="16" FontWeight="SemiBold" />
+                        <SelectorBar x:Name="Proto" SelectionChanged="Proto_SelectionChanged">
+                            <SelectorBarItem Text="OpenAI chat" IsSelected="True" />
+                            <SelectorBarItem Text="OpenAI responses" />
+                            <SelectorBarItem Text="Anthropic" />
+                            <SelectorBarItem Text="Gemini" />
+                        </SelectorBar>
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Base URL" Opacity="0.7" VerticalAlignment="Center" />
+                            <TextBlock x:Name="BaseUrl" Grid.Column="1" FontFamily="Consolas"
+                                       VerticalAlignment="Center" TextWrapping="Wrap"
+                                       IsTextSelectionEnabled="True" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="PickAddress" Content="Choose" Click="PickAddress_Click"
+                                        Padding="8,2" VerticalAlignment="Center"
+                                        Visibility="Collapsed" />
+                                <Button Content="Copy" Click="CopyBase_Click" Padding="8,2"
+                                        VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="API key" Opacity="0.7" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                <TextBlock x:Name="KeyShown" FontFamily="Consolas"
+                                           VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <ToggleButton x:Name="Reveal" Click="Reveal_Click" Padding="6,2"
+                                              ToolTipService.ToolTip="Show the key">
+                                    <FontIcon Glyph="&#xE890;" FontSize="12" />
+                                </ToggleButton>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="PickKey" Content="Choose" Click="PickKey_Click"
+                                        Padding="8,2" VerticalAlignment="Center" />
+                                <Button Content="Copy" Click="CopyKey_Click" Padding="8,2"
+                                        VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Example" Opacity="0.7" VerticalAlignment="Top"
+                                       Margin="0,6,0,0" />
+                            <StackPanel Grid.Column="1" Spacing="8">
+                                <Grid>
+                                    <TextBlock x:Name="SnippetNote" FontSize="12" Opacity="0.7"
+                                               VerticalAlignment="Center" TextWrapping="Wrap"
+                                               Margin="0,0,72,0" />
+                                    <Button Content="Copy" Click="CopySnippet_Click" Padding="8,2"
+                                            HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                </Grid>
+                                <TextBox x:Name="Snippet" IsReadOnly="True" AcceptsReturn="True"
+                                         FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                         MinHeight="120" MaxHeight="260" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Caller keys: one per client, each switched on or off in
+                     place, with what it has used of its limit. -->
+                <Border Padding="16,12" CornerRadius="8"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <StackPanel Spacing="8">
+                        <Grid>
+                            <TextBlock Text="Caller keys" FontSize="16" FontWeight="SemiBold" />
+                            <Button x:Name="AddKey" Content="Add key" Click="AddKey_Click"
+                                    Padding="10,4" HorizontalAlignment="Right" />
+                        </Grid>
+                        <TextBlock x:Name="KeysNote" FontSize="12" Opacity="0.7"
+                                   TextWrapping="Wrap" />
+                        <ItemsControl x:Name="KeyList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="local:CallerKeyRow">
+                                    <Border Margin="0,2" Padding="12,8" CornerRadius="6"
+                                            Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                                        <Grid ColumnSpacing="12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <ToggleSwitch IsOn="{x:Bind On}" OnContent="" OffContent=""
+                                                          MinWidth="0" VerticalAlignment="Center"
+                                                          Toggled="Key_Toggled" Tag="{x:Bind}" />
+                                            <StackPanel Grid.Column="1" Spacing="2"
+                                                        VerticalAlignment="Center">
+                                                <TextBlock Text="{x:Bind Name}" FontSize="14"
+                                                           FontWeight="SemiBold" />
+                                                <TextBlock Text="{x:Bind Masked}" FontFamily="Consolas"
+                                                           FontSize="12" Opacity="0.7"
+                                                           TextWrapping="Wrap" />
+                                                <TextBlock Text="{x:Bind Usage}" FontSize="12"
+                                                           Opacity="0.7" TextWrapping="Wrap"
+                                                           Visibility="{x:Bind UsageVisibility}" />
+                                            </StackPanel>
+                                            <Button Grid.Column="2" Content="Copy" Padding="8,2"
+                                                    VerticalAlignment="Center" Tag="{x:Bind}"
+                                                    Click="KeyCopy_Click" />
+                                            <Button Grid.Column="3" Padding="8,2"
+                                                    VerticalAlignment="Center" Tag="{x:Bind}"
+                                                    Click="KeyMenu_Click"
+                                                    ToolTipService.ToolTip="Rename, rotate or remove">
+                                                <FontIcon Glyph="&#xE712;" FontSize="14" />
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock x:Name="KeysEmpty" Text="No gateway keys yet." FontSize="12"
+                                   Opacity="0.7" Visibility="Collapsed" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Recent calls: one fold each, its bodies read only when it
+                     is opened (GET /api/gateway/call). -->
+                <Border Padding="16,12" CornerRadius="8"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <StackPanel Spacing="8">
+                        <Grid>
+                            <TextBlock Text="Recent calls" FontSize="16" FontWeight="SemiBold" />
+                            <TextBlock x:Name="CallsNote" FontSize="12" Opacity="0.7"
+                                       HorizontalAlignment="Right" VerticalAlignment="Center" />
+                        </Grid>
+                        <ItemsControl x:Name="CallList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="local:CallRow">
+                                    <Expander HorizontalAlignment="Stretch"
+                                              HorizontalContentAlignment="Stretch"
+                                              Margin="0,2" Tag="{x:Bind}"
+                                              Expanding="Call_Expanding">
+                                        <Expander.Header>
+                                            <Grid ColumnSpacing="12" HorizontalAlignment="Stretch">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="140" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{x:Bind Time}" FontFamily="Consolas"
+                                                           FontSize="12" Opacity="0.7"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="{x:Bind Agent}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="{x:Bind Model}"
+                                                           FontSize="12"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="3" Text="{x:Bind Provider}"
+                                                           FontSize="12" Opacity="0.6"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="4" Text="{x:Bind Result}"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Expander.Header>
+                                    </Expander>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock x:Name="CallsEmpty" Visibility="Collapsed" FontSize="12"
+                                   Opacity="0.7" TextWrapping="Wrap"
+                                   Text="No requests yet. Point an agent at a model, or run the example above; every call shows up here as it happens." />
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

@@ -100,6 +100,7 @@ internal static class PagesOf
         "providers" => typeof(ProvidersPage),
         "usage" => typeof(UsagePage),
         "library" => typeof(LibraryPage),
+        "gateway" => typeof(GatewayPage),
         // the pages not drawn here yet are the page magpie serves, in a
         // WebView2 (Pages/WebHostPage): each takes one of these away as it
         // is drawn (desktop/README.md)
