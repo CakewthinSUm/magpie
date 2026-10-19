@@ -436,7 +436,11 @@ public sealed class GroupsJson
 {
     public List<GroupJson> Groups { get; set; } = [];
     public List<ModelRefJson> Models { get; set; } = [];
+    public List<PoolJson> Pools { get; set; } = [];
+    public List<ModelRefJson> Deciders { get; set; } = [];
     public bool Found { get; set; }
+    public List<TemplateJson> Templates { get; set; } = [];
+    public string? Shared { get; set; }
 }
 
 public sealed class GroupJson
@@ -444,17 +448,43 @@ public sealed class GroupJson
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public List<string> Members { get; set; } = [];
+    public List<string>? Match { get; set; }
+    public List<string>? Matched { get; set; }
     public string? Routing { get; set; }
     public string? Affinity { get; set; }
     public string? Pick { get; set; }
+    public bool Sink { get; set; }
+    public bool Unlists { get; set; }
     public bool Auto { get; set; }
     public bool Hidden { get; set; }
     public bool Disabled { get; set; }
     public bool Ready { get; set; }
     public List<MemberJson> MemberInfo { get; set; } = [];
+    /// <summary>The member a manual group sends every request to, as
+    /// groupsState works it out (its Pick, else its first).</summary>
     public string? Picked { get; set; }
     public bool Decides { get; set; }
     public string? Family { get; set; }
+    public List<string> Offers { get; set; } = [];
+    public List<string> Shared { get; set; } = [];
+    public List<PatternHitJson> Patterns { get; set; } = [];
+    public ClassifierFailedJson? ClassifierFailed { get; set; }
+}
+
+/// <summary>A group's pattern and how many models it matches now: one that
+/// matches nothing is said, not left an empty group.</summary>
+public sealed class PatternHitJson
+{
+    public string Pattern { get; set; } = "";
+    public int Models { get; set; }
+}
+
+/// <summary>The classifier's last failure, which the group's card says
+/// (#1929): until it answers, no rule with an intent matches.</summary>
+public sealed class ClassifierFailedJson
+{
+    public string Error { get; set; } = "";
+    public DateTimeOffset At { get; set; }
 }
 
 public sealed class MemberJson
@@ -467,6 +497,36 @@ public sealed class MemberJson
     public string? Model { get; set; }
     public string? Effort { get; set; }
     public bool ProviderOff { get; set; }
+    /// <summary>The model's id without the effort the member is fixed at
+    /// ("provider/model:low"); empty for one without.</summary>
+    public string? Of { get; set; }
+    public bool Group { get; set; }
+    public bool Fast { get; set; }
+    public int On { get; set; }
+}
+
+/// <summary>A provider with several keys or accounts on, which routes over
+/// them already (the Routing page lists them under the groups).</summary>
+public sealed class PoolJson
+{
+    public string Provider { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Icon { get; set; }
+    public string Kind { get; set; } = "";
+    public List<string> Who { get; set; } = [];
+    public string Routing { get; set; } = "";
+    public string Affinity { get; set; } = "";
+}
+
+/// <summary>A group for a common need made of the user's own models, which
+/// the page adds in a click (provider.Templates).</summary>
+public sealed class TemplateJson
+{
+    public string Kind { get; set; } = "";
+    public GroupJson Group { get; set; } = new();
+    public string? Why { get; set; }
+    public string? Need { get; set; }
+    public string? Of { get; set; }
 }
 
 public sealed class ModelRefJson
@@ -522,6 +582,103 @@ public sealed class RouteJson
     public bool Priced { get; set; }
     public int Unpriced { get; set; }
     public string? Folder { get; set; }
+    /// <summary>The routing group the agent asked for, when it asked for
+    /// one.</summary>
+    public GroupRefJson? Group { get; set; }
+    /// <summary>The accounts and keys in the order routing weighed them,
+    /// first first, then each try in the order it was made.</summary>
+    public List<WeighedJson> Order { get; set; } = [];
+    public List<TryJson> Tries { get; set; } = [];
+}
+
+/// <summary>The routing group a request asked for, as the trace recorded
+/// it (gateway.GroupRef).</summary>
+public sealed class GroupRefJson
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Routing { get; set; } = "";
+    public string Affinity { get; set; } = "";
+    public bool Auto { get; set; }
+    public List<string> Members { get; set; } = [];
+    public List<SubGroupJson> Subs { get; set; } = [];
+    public List<PausedJson> Paused { get; set; } = [];
+}
+
+public sealed class SubGroupJson
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Routing { get; set; } = "";
+    public string In { get; set; } = "";
+}
+
+/// <summary>A model a pause rule left out of a request.</summary>
+public sealed class PausedJson
+{
+    public string Member { get; set; } = "";
+    public string? Group { get; set; }
+    public int Rule { get; set; }
+    public string? Use { get; set; }
+    public List<string> When { get; set; } = [];
+}
+
+/// <summary>One account or key as routing weighed it.</summary>
+public sealed class WeighedJson
+{
+    public string Id { get; set; } = "";
+    public string Provider { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Icon { get; set; }
+    /// <summary>The account, or the key's name or its masked self.</summary>
+    public string? Who { get; set; }
+    /// <summary>"account", "key", or "provider" when it has one.</summary>
+    public string Kind { get; set; } = "";
+    public string Model { get; set; } = "";
+    public string? Fixed { get; set; }
+    public bool Fast { get; set; }
+    public bool Fallback { get; set; }
+    public bool Shared { get; set; }
+    public double Used { get; set; }
+    public RestJson? Rest { get; set; }
+}
+
+/// <summary>How long a failed account or key sits out, and by what.</summary>
+public sealed class RestJson
+{
+    public string Why { get; set; } = "";
+    public int Status { get; set; }
+    public DateTimeOffset Until { get; set; }
+    public string By { get; set; } = "";
+    public int Failures { get; set; }
+}
+
+/// <summary>One candidate trying the request.</summary>
+public sealed class TryJson
+{
+    public string Id { get; set; } = "";
+    public string? Model { get; set; }
+    public string? Effort { get; set; }
+    public string? Fixed { get; set; }
+    public DateTimeOffset Start { get; set; }
+    public bool Done { get; set; }
+    public int Status { get; set; }
+    public long Ms { get; set; }
+    public long Ttft { get; set; }
+    public long FirstText { get; set; }
+    public string? Served { get; set; }
+    public bool Swapped { get; set; }
+    public bool Routed { get; set; }
+    /// <summary>Why it failed, as rest tells it (rate, credit, quota…).</summary>
+    public string? Fail { get; set; }
+    /// <summary>What the vendor said, word for word.</summary>
+    public string? Error { get; set; }
+    public RestJson? Rest { get; set; }
+    /// <summary>ms waited before it was tried again, the last one left.</summary>
+    public long Again { get; set; }
+    /// <summary>The agent canceled the request in the pause before the
+    /// retry Again was to be waited (#1894).</summary>
+    public bool Gone { get; set; }
 }
 
 // ---- /api/sessions (sessionsJSON, sessionJSON) ----
