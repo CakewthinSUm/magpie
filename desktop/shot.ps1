@@ -24,14 +24,18 @@ public class Shot {
   public struct RECT { public int Left, Top, Right, Bottom; }
 }
 "@
+# the window's rect and the screen's are in physical pixels: without this the
+# script reads a 125%-scaled rect and cuts off the window's right and foot
 [void][Shot]::SetProcessDPIAware()
 
+# this checkout's own build, and the one with a window: another checkout's
+# copy may run beside it, and only one of them is the one to photograph
 $proc = Get-Process -Name 'Magpie.Desktop' -ErrorAction SilentlyContinue |
-    Where-Object { $_.Path -and (Split-Path $_.Path -Parent) -eq $exe } |
+    Where-Object { $_.Path -and (Split-Path $_.Path -Parent) -eq $exe -and $_.MainWindowHandle -ne 0 } |
     Select-Object -First 1
-if (-not $proc) { throw "no $name running from $exe" }
+if (-not $proc) { throw "no $name with a window is running from $exe" }
+
 $h = $proc.MainWindowHandle
-if ($h -eq 0) { throw "the app has no window" }
 [void][Shot]::ShowWindow($h, 9)   # SW_RESTORE
 [void][Shot]::SetForegroundWindow($h)
 Start-Sleep -Milliseconds 900

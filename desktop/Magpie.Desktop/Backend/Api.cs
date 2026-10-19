@@ -467,15 +467,120 @@ public sealed class SessionJson
     public DateTimeOffset Last { get; set; }
     public int Input { get; set; }
     public int Output { get; set; }
+    [JsonPropertyName("cache_read")]
     public int CacheRead { get; set; }
     public double Cost { get; set; }
     public int Unpriced { get; set; }
     public string Resume { get; set; } = "";
     public string Path { get; set; } = "";
     public bool Gateway { get; set; }
+    [JsonPropertyName("read_only")]
     public bool ReadOnly { get; set; }
     public bool Transcript { get; set; }
     public string? Wsl { get; set; }
+
+    // ---- the same session as /api/sessions/manage lists it (sessions.Managed) ----
+
+    /// <summary>What it spent, model by model.</summary>
+    public List<SessionModelJson> Models { get; set; } = [];
+    /// <summary>Its files' size in bytes.</summary>
+    public long Size { get; set; }
+    public int Messages { get; set; }
+    public int Files { get; set; }
+    /// <summary>Whether magpie can move it to its trash.</summary>
+    public bool Deletable { get; set; }
+    /// <summary>Codex: the provider it was made with, and the one Codex
+    /// lists in its history now.</summary>
+    public string? Provider { get; set; }
+    [JsonPropertyName("uses_provider")]
+    public string? UsesProvider { get; set; }
+    /// <summary>Where magpie's gateway sent its calls, the most first.</summary>
+    public List<SessionViaJson> Via { get; set; } = [];
+}
+
+/// <summary>One model's share of a session (sessions.Model).</summary>
+public sealed class SessionModelJson
+{
+    public string Model { get; set; } = "";
+    public int Input { get; set; }
+    public int Output { get; set; }
+    [JsonPropertyName("cache_read")]
+    public int CacheRead { get; set; }
+    [JsonPropertyName("cache_write")]
+    public int CacheWrite { get; set; }
+    public double Cost { get; set; }
+    public bool Priced { get; set; }
+}
+
+/// <summary>One place a session's calls went through the gateway (usage.Via).</summary>
+public sealed class SessionViaJson
+{
+    public string Provider { get; set; } = "";
+    public string Model { get; set; } = "";
+    public string? Effort { get; set; }
+    public int Calls { get; set; }
+    public int Tokens { get; set; }
+}
+
+/// <summary>/api/sessions/manage (sessions_manage.go): one agent's sessions
+/// with what deleting needs, the agents to pick from, and the trash.</summary>
+public sealed class SessionsManageJson
+{
+    public List<ManageAgentJson> Agents { get; set; } = [];
+    public string Agent { get; set; } = "";
+    public List<SessionJson> Sessions { get; set; } = [];
+    public bool Terminal { get; set; }
+    public List<TrashedJson> Trash { get; set; } = [];
+    public string TrashDir { get; set; } = "";
+    public bool Recording { get; set; }
+    public bool Recorded { get; set; }
+}
+
+public sealed class ManageAgentJson
+{
+    public string Agent { get; set; } = "";
+    public int Count { get; set; }
+    public bool Deletable { get; set; }
+    public string Name { get; set; } = "";
+    public string Icon { get; set; } = "";
+}
+
+/// <summary>A session in magpie's trash (sessions.Trashed).</summary>
+public sealed class TrashedJson
+{
+    public string Key { get; set; } = "";
+    public string Agent { get; set; } = "";
+    public string Id { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string Cwd { get; set; } = "";
+    public DateTimeOffset Last { get; set; }
+    public DateTimeOffset Deleted { get; set; }
+    public long Size { get; set; }
+    public bool Gateway { get; set; }
+    public string Name { get; set; } = "";
+    public string Icon { get; set; } = "";
+    public List<TrashedItemJson> Items { get; set; } = [];
+}
+
+public sealed class TrashedItemJson
+{
+    public string From { get; set; } = "";
+    public string Name { get; set; } = "";
+}
+
+/// <summary>What POST /api/sessions/delete moved, and what it refused.</summary>
+public sealed class SessionsDeleteJson
+{
+    public List<string> Deleted { get; set; } = [];
+    public List<SessionRefusedJson> Refused { get; set; } = [];
+}
+
+public sealed class SessionRefusedJson
+{
+    public string Id { get; set; } = "";
+    public string Error { get; set; } = "";
+    /// <summary>Still being written: its agent may be running it.</summary>
+    public bool Active { get; set; }
 }
 
 // ---- /api/library (libraryJSON, library.View) ----

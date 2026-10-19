@@ -96,6 +96,7 @@ internal static class PagesOf
     public static Type Tag(string view) => view switch
     {
         "agents" => typeof(AgentsPage),
+        "sessions" => typeof(SessionsPage),
         "providers" => typeof(ProvidersPage),
         "usage" => typeof(UsagePage),
         // the pages not drawn here yet are the page magpie serves, in a

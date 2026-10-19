@@ -63,6 +63,16 @@ public sealed class MagpieClient : IDisposable
         return await resp.Content.ReadFromJsonAsync<T>(Json.Options, cancel).ConfigureAwait(false);
     }
 
+    /// <summary>A file the page serves beside its API (an icon): its bytes,
+    /// read with this client's cookie. An image control loading the address
+    /// itself has no cookie, and magpie's guard turns it away.</summary>
+    public async Task<byte[]?> GetBytesAsync(string path, CancellationToken cancel = default)
+    {
+        using var resp = await _http.GetAsync(_base + path, cancel).ConfigureAwait(false);
+        await EnsureOkAsync(resp, path).ConfigureAwait(false);
+        return await resp.Content.ReadAsByteArrayAsync(cancel).ConfigureAwait(false);
+    }
+
     public async Task<T?> PostAsync<T>(string path, object? body = null, CancellationToken cancel = default)
     {
         using var resp = await _http.PostAsJsonAsync(_base + "api/" + path, body ?? new { }, Json.Options, cancel)
