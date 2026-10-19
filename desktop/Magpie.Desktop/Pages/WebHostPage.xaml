@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="Magpie.Desktop.Pages.WebHostPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls">
+
+    <!-- A page not drawn in XAML yet: the page magpie serves, in WebView2,
+         exactly as the Wails app showed it. Each page drawn here takes one
+         of these away. -->
+    <Grid>
+        <controls:WebView2 x:Name="Web" />
+        <ProgressRing x:Name="Busy" IsActive="False" Width="32" Height="32"
+                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+    </Grid>
+</Page>

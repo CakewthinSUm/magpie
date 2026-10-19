@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="Magpie.Desktop.Pages.SessionsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Magpie.Desktop.Pages">
+
+    <!--
+      Sessions, as Windows lays a master/detail page out: the sessions of one
+      agent on the left, grouped by the day they last ran, and the one picked
+      on the right with its facts and its resume command. The filter narrows
+      the list; the agent is a menu, never a select (docs/code-standards.md).
+      Everything comes from /api/sessions/manage, as the page's list does.
+    -->
+    <Grid x:Name="Root" Padding="32,24,32,24" ColumnSpacing="20" SizeChanged="Root_SizeChanged">
+        <!-- the list and the detail side by side on a wide window, as a
+             master/detail page is; one above the other when the window is
+             narrow, so neither is cut off -->
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="ListColumn" Width="*" MinWidth="220" />
+            <ColumnDefinition x:Name="DetailColumn" Width="1.1*" MinWidth="220" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition x:Name="ListRow" Height="*" />
+            <RowDefinition x:Name="DetailRow" Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Spacing="4" Margin="0,0,0,12">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <TextBlock Text="Sessions" Style="{ThemeResource TitleTextBlockStyle}" />
+                <ProgressRing x:Name="Busy" IsActive="False" Width="16" Height="16"
+                              VerticalAlignment="Center" />
+                <TextBlock x:Name="Status" VerticalAlignment="Center" FontSize="12"
+                           Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- the agent, what narrows the list, and the trash -->
+        <Grid Grid.Row="1" Grid.ColumnSpan="2" Margin="0,0,0,12" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Button x:Name="AgentPick" Click="AgentPick_Click" MinWidth="0">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Image x:Name="AgentPickIcon" Width="16" Height="16" />
+                    <TextBlock x:Name="AgentPickName" Text="Agent" VerticalAlignment="Center" />
+                    <TextBlock x:Name="AgentPickCount" VerticalAlignment="Center" Opacity="0.6" FontSize="12" />
+                    <FontIcon Glyph="&#xE70D;" FontSize="10" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+            <AutoSuggestBox x:Name="Find" Grid.Column="1" PlaceholderText="Search sessions"
+                            TextChanged="Find_TextChanged" />
+            <ToggleButton x:Name="TrashToggle" Grid.Column="2" Click="TrashToggle_Click">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                    <TextBlock Text="Trash" VerticalAlignment="Center" />
+                    <TextBlock x:Name="TrashCount" VerticalAlignment="Center" Opacity="0.6" FontSize="12" />
+                </StackPanel>
+            </ToggleButton>
+        </Grid>
+
+        <!-- what the list can't do, and what it has to say about itself -->
+        <InfoBar x:Name="ListNotice" Grid.Row="2" Grid.ColumnSpan="2" IsOpen="False"
+                 Severity="Warning" IsClosable="True" Margin="0,0,0,12" />
+
+        <!-- the list, by day -->
+        <Grid x:Name="ListPane" Grid.Row="3" Grid.Column="0">
+            <ScrollViewer x:Name="ListScroll" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <ItemsControl x:Name="List">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="local:SessionRow">
+                                <StackPanel>
+                                    <TextBlock Text="{x:Bind Header}" Visibility="{x:Bind HeaderVisibility}"
+                                               Margin="4,12,0,6" FontSize="12" FontWeight="SemiBold"
+                                               Opacity="0.6" />
+                                    <Border Margin="0,0,0,4" Padding="12,10" CornerRadius="8"
+                                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                            BorderThickness="1"
+                                            Tag="{x:Bind}" Tapped="Row_Tapped">
+                                        <Grid ColumnSpacing="10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Image Width="18" Height="18" VerticalAlignment="Center"
+                                                   Source="{x:Bind Icon}" />
+                                            <StackPanel Grid.Column="1" Spacing="2">
+                                                <TextBlock Text="{x:Bind Title}" FontSize="14"
+                                                           FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{x:Bind Line}" FontSize="12" Opacity="0.7"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Spacing="2" HorizontalAlignment="Right">
+                                                <TextBlock Text="{x:Bind Tokens}" FontSize="12"
+                                                           HorizontalAlignment="Right" />
+                                                <TextBlock Text="{x:Bind Cost}" FontSize="12" Opacity="0.7"
+                                                           HorizontalAlignment="Right" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock x:Name="Empty" Visibility="Collapsed" Margin="4,16"
+                               TextWrapping="Wrap" Opacity="0.8"
+                               Text="No session matches." />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- the trash, over the list's place while it is open -->
+        <Grid Grid.Row="3" Grid.Column="0" Visibility="Collapsed" x:Name="TrashPane" Margin="0,0,0,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <ItemsControl x:Name="TrashList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="local:TrashRow">
+                                <Border Margin="0,0,0,4" Padding="12,10" CornerRadius="8"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1">
+                                    <Grid ColumnSpacing="10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Width="18" Height="18" VerticalAlignment="Center"
+                                               Source="{x:Bind Icon}" />
+                                        <StackPanel Grid.Column="1" Spacing="2">
+                                            <TextBlock Text="{x:Bind Title}" FontSize="14" FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{x:Bind Line}" FontSize="12" Opacity="0.7"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Content="Restore" Tag="{x:Bind}"
+                                                Click="Restore_Click" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock x:Name="TrashEmpty" Visibility="Collapsed" Margin="4,16"
+                               TextWrapping="Wrap" Opacity="0.8"
+                               Text="Trash is empty. Sessions deleted here wait in magpie's trash, to be restored." />
+                </StackPanel>
+            </ScrollViewer>
+            <Button Grid.Row="1" x:Name="EmptyTrash" Content="Empty trash" Margin="0,12,0,0"
+                    HorizontalAlignment="Left" Click="EmptyTrash_Click" />
+        </Grid>
+
+        <!-- the picked session -->
+        <ScrollViewer x:Name="DetailPane" Grid.Row="3" Grid.Column="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="Detail" Spacing="8">
+                <TextBlock x:Name="DetailHint" Margin="4,8" TextWrapping="Wrap" Opacity="0.7"
+                           Text="Pick a session on the left to see what it spent and how to pick it up again." />
+
+                <Border x:Name="DetailCard" Visibility="Collapsed" Padding="16,14" CornerRadius="8"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Image x:Name="DetailIcon" Width="22" Height="22" VerticalAlignment="Center" />
+                            <StackPanel Spacing="2">
+                                <TextBlock x:Name="DetailTitle" FontSize="16" FontWeight="SemiBold"
+                                           TextWrapping="Wrap" />
+                                <TextBlock x:Name="DetailAgent" FontSize="12" Opacity="0.7" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <Grid ColumnSpacing="12" RowSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="96" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Ran" Opacity="0.7" />
+                            <TextBlock Grid.Column="1" x:Name="DetailRan" TextWrapping="Wrap" />
+                            <TextBlock Grid.Row="1" Text="Folder" Opacity="0.7" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" x:Name="DetailFolder" TextWrapping="Wrap" />
+                            <TextBlock Grid.Row="2" Text="Session ID" Opacity="0.7" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" x:Name="DetailId" FontFamily="Consolas"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Grid.Row="3" Text="File" Opacity="0.7" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" x:Name="DetailFile" TextWrapping="Wrap"
+                                       FontSize="12" Opacity="0.8" />
+                        </Grid>
+
+                        <StackPanel x:Name="ResumeBox" Spacing="6">
+                            <TextBlock Text="Resume" FontSize="12" Opacity="0.7" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Padding="8,6" CornerRadius="4"
+                                        Background="{ThemeResource ControlFillColorSecondaryBrush}">
+                                    <TextBlock x:Name="DetailResume" FontFamily="Consolas" FontSize="12"
+                                               IsTextSelectionEnabled="True" TextWrapping="Wrap" />
+                                </Border>
+                                <Button Grid.Column="1" x:Name="CopyResume" Content="Copy"
+                                        Click="CopyResume_Click" />
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="What it spent" FontSize="12" Opacity="0.7" />
+                            <ItemsControl x:Name="ModelList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="local:ModelRow">
+                                        <Grid ColumnSpacing="12" Padding="0,3">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Spacing="1">
+                                                <TextBlock Text="{x:Bind Name}" FontSize="13" />
+                                                <TextBlock Text="{x:Bind Line}" FontSize="12" Opacity="0.7" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{x:Bind Cost}"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock x:Name="ModelsNone" Visibility="Collapsed" Opacity="0.7"
+                                       Text="No model recorded tokens for it." />
+                        </StackPanel>
+
+                        <StackPanel x:Name="ViaBox" Spacing="4" Visibility="Collapsed">
+                            <TextBlock Text="Routed" FontSize="12" Opacity="0.7" />
+                            <ItemsControl x:Name="ViaList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="local:ViaRow">
+                                        <TextBlock Text="{x:Bind Line}" FontSize="12" TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <InfoBar IsOpen="True" IsClosable="False" Severity="Informational"
+                                 Message="Its conversation is not drawn here yet: open Sessions in magpie web to read it. The facts above, and Delete, are this app's own." />
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button x:Name="DeleteOne" Content="Delete…" Click="DeleteOne_Click" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

@@ -1,0 +1,5 @@
+# the build's output, and the magpie.exe placed beside it to run against
+bin/
+obj/
+magpie-desktop.log
+shot-*.png
