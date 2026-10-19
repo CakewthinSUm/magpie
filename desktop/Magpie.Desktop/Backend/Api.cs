@@ -595,6 +595,38 @@ public sealed class LibraryJson
     public string Home { get; set; } = "";
     public string Dir { get; set; } = "";
     public bool Partial { get; set; }
+    /// <summary>What the last change couldn't write into an agent (library.Problem).</summary>
+    public List<LibraryProblemJson>? Problems { get; set; }
+    /// <summary>What the last change did, as its own answer has it.</summary>
+    public LibraryResultJson? Result { get; set; }
+}
+
+/// <summary>One thing that couldn't be given to an agent: "instructions",
+/// "mcp:&lt;name&gt;" or "skill:&lt;name&gt;".</summary>
+public sealed class LibraryProblemJson
+{
+    public string Agent { get; set; } = "";
+    public string What { get; set; } = "";
+    public string Error { get; set; } = "";
+    public bool Own { get; set; }
+}
+
+/// <summary>What a change wrote, and what it couldn't.</summary>
+public sealed class LibraryResultJson
+{
+    public List<string> Changed { get; set; } = [];
+    public List<LibraryProblemJson> Problems { get; set; } = [];
+    public string? Backup { get; set; }
+}
+
+/// <summary>The answer to a change of the instructions alone
+/// (instructionsJSON): the instructions, not the whole library.</summary>
+public sealed class InstructionsAnswerJson
+{
+    public string Part { get; set; } = "";
+    public InstructionsJson? Instructions { get; set; }
+    public LibraryResultJson? Result { get; set; }
+    public List<LibraryProblemJson>? Problems { get; set; }
 }
 
 public sealed class LibraryAgentJson
@@ -611,9 +643,20 @@ public sealed class LibraryServerJson
     public string Name { get; set; } = "";
     public string Transport { get; set; } = "";
     public string? Command { get; set; }
+    public List<string>? Args { get; set; }
     public string? Url { get; set; }
     public List<string> Agents { get; set; } = [];
     public string? Icon { get; set; }
+    /// <summary>The agents it couldn't be given to, and why (library.ServerView).</summary>
+    public Dictionary<string, string>? Problems { get; set; }
+    /// <summary>magpie's sign-in to a streamable HTTP server.</summary>
+    public McpSignInJson? SignIn { get; set; }
+}
+
+public sealed class McpSignInJson
+{
+    public bool SignedIn { get; set; }
+    public bool Dead { get; set; }
 }
 
 public sealed class LibrarySkillJson
@@ -624,6 +667,8 @@ public sealed class LibrarySkillJson
     public string Kind { get; set; } = "";
     public List<string> Agents { get; set; } = [];
     public bool Missing { get; set; }
+    /// <summary>The agents it couldn't be given to, and why (library.SkillView).</summary>
+    public Dictionary<string, string>? Problems { get; set; }
 }
 
 public sealed class FoundSkillJson
@@ -631,12 +676,36 @@ public sealed class FoundSkillJson
     public string Name { get; set; } = "";
     public string Description { get; set; } = "";
     public List<string> Agents { get; set; } = [];
+    /// <summary>Agents with another skill by that name, which stays as it is.</summary>
+    public List<string>? Others { get; set; }
+    /// <summary>Agents with a copy of the very same files.</summary>
+    public List<string>? Copies { get; set; }
 }
 
 public sealed class InstructionsJson
 {
     public string Shared { get; set; } = "";
     public List<InstructionSetJson> Sets { get; set; } = [];
+    public List<AgentInstructionsJson> Agents { get; set; } = [];
+}
+
+public sealed class AgentInstructionsJson
+{
+    public string Agent { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Icon { get; set; } = "";
+    public string Path { get; set; } = "";
+    public bool On { get; set; }
+    /// <summary>What this agent gets besides the shared text.</summary>
+    public string Extra { get; set; } = "";
+    /// <summary>Lines of the user's own in the file.</summary>
+    public int Own { get; set; }
+    /// <summary>magpie's part was changed in the file itself.</summary>
+    public bool Edited { get; set; }
+    /// <summary>A file the agent reads instead.</summary>
+    public string Override { get; set; } = "";
+    /// <summary>The file is the user's profile to the agent.</summary>
+    public bool Profile { get; set; }
 }
 
 public sealed class InstructionSetJson
@@ -645,6 +714,8 @@ public sealed class InstructionSetJson
     public string Name { get; set; } = "";
     public string Text { get; set; } = "";
     public bool Active { get; set; }
+    /// <summary>The user's own file it is kept in, when it is one.</summary>
+    public string File { get; set; } = "";
 }
 
 // ---- /api/plugins (pluginsJSON, pluginEntryJSON) ----
