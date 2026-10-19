@@ -41,7 +41,9 @@ wins.
 | Page | How |
 | --- | --- |
 | Agents | XAML (`Pages/AgentsPage`): the agents, their fields, and the app's own menu for a value |
-| Providers, Usage, Gateway, Routing, Sessions, Library, Plugins, Settings | the page magpie serves, in a WebView2 (`Pages/WebHostPage`) |
+| Providers | XAML (`Pages/ProvidersPage`): the sources, their keys and sign-ins, each switched on or off in place |
+| Usage | XAML (`Pages/UsagePage`): the allowances each subscription and key has left, and a period's tokens, calls and cost by agent and model |
+| Gateway, Routing, Sessions, Library, Plugins, Settings | the page magpie serves, in a WebView2 (`Pages/WebHostPage`) |
 
 Each page drawn here takes one WebView2 away. A community plugin's page stays
 a web page, as it is everywhere.

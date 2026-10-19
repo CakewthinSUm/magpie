@@ -280,6 +280,9 @@ public sealed class QuotaJson
     public DateTimeOffset? ResetsAt { get; set; }
     public DateTimeOffset? ReadAt { get; set; }
     public DateTimeOffset? Until { get; set; }
+    /// <summary>Whether the plan renews when Until passes: "auto", "off", or
+    /// "" when the vendor doesn't say which.</summary>
+    public string? Renew { get; set; }
     public bool ReadDeferred { get; set; }
     public string? From { get; set; }
 }
