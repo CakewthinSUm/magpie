@@ -47,7 +47,8 @@ public partial class App : Application
             e.Handled = true;
             Fail(e.Exception);
         };
-        _single = new Mutex(initiallyOwned: true, "magpie-desktop", out var first);
+        // one app per copy: two checkouts' builds are two apps (SingleInstance.Key)
+        _single = new Mutex(initiallyOwned: true, SingleInstance.Key, out var first);
         if (!first)
         {
             // the app already running brings its window up instead
