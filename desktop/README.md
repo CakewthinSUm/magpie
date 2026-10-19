@@ -47,7 +47,8 @@ wins.
 | Library | XAML (`Pages/LibraryPage`): the instructions and their sets, the MCP servers and the skills, each given to an agent or taken from it; editing text, adding a server and installing a skill stay the page's |
 | Gateway | XAML (`Pages/GatewayPage`): the gateway's state and address, how to connect in each API, the caller keys, and the recent calls with their bodies a fold away |
 | Routing | XAML (`Pages/RoutingPage`): the gateway's trace of each request, its story, and the routing groups |
-| Plugins, Settings | the page magpie serves, in a WebView2 (`Pages/WebHostPage`) |
+| Plugins | XAML (`Pages/PluginsPage`): installed plugins, the built-in ones and their switches, and the market to install from |
+| Settings | XAML (`Pages/SettingsPage`): General and About drawn, the other parts named with a line saying they are not drawn yet |
 
 Each page drawn here takes one WebView2 away. A community plugin's page stays
 a web page, as it is everywhere.

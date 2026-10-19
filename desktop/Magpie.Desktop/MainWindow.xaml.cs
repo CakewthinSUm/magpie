@@ -43,9 +43,12 @@ public sealed partial class MainWindow : Window
     {
         var key = view.Split('&')[0];
         if (key.Length == 0) key = "agents";
+        // the whole view goes to the page, which reads a tab from it where
+        // it has one ("settings&tab=about", "plugins&tab=discover")
         if (key == "settings")
         {
             Nav.SelectedItem = Nav.SettingsItem;
+            Show(view);
             return;
         }
         foreach (var item in Nav.MenuItems)
@@ -53,11 +56,32 @@ public sealed partial class MainWindow : Window
             if (item is NavigationViewItem { Tag: string tag } && tag == key)
             {
                 Nav.SelectedItem = item;
+                Show(view);
                 return;
             }
         }
         // a page this window has no tab for (a community plugin's): Plugins
         Nav.SelectedItem = Nav.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(i => (string?)i.Tag == "plugins");
+        Show("plugins");
+    }
+
+    /// <summary>
+    /// Opens the view now. The NavigationView's SelectionChanged is not
+    /// raised before its own template is up, which is how a view named on
+    /// the command line (and the Settings item) reached no page at all.
+    /// </summary>
+    private void Show(string view)
+    {
+        var tag = view.Split('&')[0];
+        ViewMemory.Last = tag;
+        var page = PagesOf.Tag(tag);
+        if (Pages.Content?.GetType() == page)
+        {
+            if (Pages.Content is WebHostPage web) web.Open(view);
+            else if (Pages.Content is IRefreshable drawn) _ = drawn.Kit.Refresh();
+            return;
+        }
+        Pages.Navigate(page, view, new SuppressNavigationTransitionInfo());
     }
 
     private void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
@@ -69,15 +93,7 @@ public sealed partial class MainWindow : Window
             _ => "",
         };
         if (tag.Length == 0) return;
-        ViewMemory.Last = tag;
-        var page = PagesOf.Tag(tag);
-        if (Pages.Content?.GetType() == page)
-        {
-            if (Pages.Content is WebHostPage web) web.Open(tag);
-            else if (Pages.Content is IRefreshable drawn) _ = drawn.Kit.Refresh();
-            return;
-        }
-        Pages.Navigate(page, tag, new SuppressNavigationTransitionInfo());
+        Show(tag);
     }
 
     private void Refresh_Click(object sender, RoutedEventArgs e)
@@ -102,6 +118,8 @@ internal static class PagesOf
         "library" => typeof(LibraryPage),
         "gateway" => typeof(GatewayPage),
         "routing" => typeof(RoutingPage),
+        "plugins" => typeof(PluginsPage),
+        "settings" => typeof(SettingsPage),
         // the pages not drawn here yet are the page magpie serves, in a
         // WebView2 (Pages/WebHostPage): each takes one of these away as it
         // is drawn (desktop/README.md)

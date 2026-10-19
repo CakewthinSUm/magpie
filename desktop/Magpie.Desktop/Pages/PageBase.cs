@@ -62,3 +62,204 @@ public sealed class Row
     /// <summary>What the row holds, for a template that shows a count.</summary>
     public string? Note { get; set; }
 }
+
+/// <summary>
+/// A setting's row as Windows draws one: its name and what it does on the
+/// left, the control that changes it on the right, in a card. The pages
+/// that have settings build these rather than a page of their own, so one
+/// setting looks the same wherever it is.
+/// </summary>
+public sealed class SettingRow
+{
+    public string Title { get; set; } = "";
+    public string Description { get; set; } = "";
+    /// <summary>The control that changes it: a ToggleSwitch, a row of radio
+    /// buttons, or a button.</summary>
+    public Microsoft.UI.Xaml.FrameworkElement? Control { get; set; }
+}
+
+/// <summary>
+/// The pieces the pages drawn here share beyond their own data: the icon
+/// names magpie's page serves, and the Settings page's rows.
+/// </summary>
+public static class PageKitUI
+{
+    /// <summary>The icons magpie's page keeps as PNG rather than SVG (app.js's
+    /// pngIcons), so a vendor logo is asked for as the file it is.</summary>
+    private static readonly HashSet<string> PngIcons = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "crush", "zcode", "alma", "hanako", "cindy", "lody", "typesafe",
+        "atomcode", "snow", "mlx-serve", "mothx",
+    };
+
+    /// <summary>
+    /// A picture from the page's icon folder (/api/icons serves it): a
+    /// picture the user gave is kept as file:&lt;name&gt;, and a vendor's is
+    /// its name with .svg, or .png for the few kept as one. None when the
+    /// name says nothing magpie can show.
+    /// </summary>
+    public static Microsoft.UI.Xaml.Media.ImageSource? IconOf(string? icon)
+    {
+        if (string.IsNullOrEmpty(icon)) return null;
+        var app = App.CurrentApp;
+        if (app.Client.BaseUrl.Length == 0) return null;
+        string path;
+        string file;
+        if (icon.StartsWith("file:", StringComparison.Ordinal))
+        {
+            file = icon[5..];
+            path = "icons/" + Uri.EscapeDataString(file);
+        }
+        else if (icon.StartsWith("https://", StringComparison.Ordinal) || icon.StartsWith("data:", StringComparison.Ordinal))
+        {
+            // a plugin's own picture, not one of magpie's files
+            return new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(icon));
+        }
+        else
+        {
+            file = icon + (PngIcons.Contains(icon) ? ".png" : ".svg");
+            path = "icons/" + Uri.EscapeDataString(file);
+        }
+        var uri = new Uri(app.Client.BaseUrl + path);
+        // WinUI reads an SVG as one, a BitmapImage only as a bitmap
+        return file.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)
+            ? new Microsoft.UI.Xaml.Media.Imaging.SvgImageSource(uri)
+            : new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(uri);
+    }
+
+    /// <summary>One setting's row, in a card: its name and what it does, the
+    /// control on the right. A description is a line under the name, and
+    /// wraps rather than being cut off.</summary>
+    public static Border Setting(SettingRow row)
+    {
+        var grid = new Grid { ColumnSpacing = 16 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var who = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        who.Children.Add(new TextBlock { Text = row.Title });
+        if (row.Description.Length > 0)
+        {
+            who.Children.Add(new TextBlock
+            {
+                Text = row.Description,
+                FontSize = 12,
+                Opacity = 0.7,
+                TextWrapping = TextWrapping.Wrap,
+            });
+        }
+        grid.Children.Add(who);
+
+        if (row.Control is not null)
+        {
+            row.Control.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(row.Control, 1);
+            grid.Children.Add(row.Control);
+        }
+
+        return new Border
+        {
+            Padding = new Thickness(16, 10, 16, 10),
+            Margin = new Thickness(0, 0, 0, 4),
+            CornerRadius = new CornerRadius(8),
+            Background = ThemeBrush("CardBackgroundFillColorDefaultBrush"),
+            BorderBrush = ThemeBrush("CardStrokeColorDefaultBrush"),
+            BorderThickness = new Thickness(1),
+            Child = grid,
+        };
+    }
+
+    /// <summary>A theme's brush by name, from the app's resources; none when
+    /// the system has no such brush (a page still draws, plainly).</summary>
+    private static Microsoft.UI.Xaml.Media.Brush? ThemeBrush(string key) =>
+        Application.Current.Resources.TryGetValue(key, out var v) ? v as Microsoft.UI.Xaml.Media.Brush : null;
+
+    /// <summary>A row of choices: the product rule is no native select, so a
+    /// setting with a few values is a row of radio buttons, the picked one
+    /// marked. Changed fires once, with the value picked. A value not among
+    /// the choices leaves none marked.</summary>
+    public static FrameworkElement Choices(IEnumerable<(string Value, string Label)> values, string picked, Action<string> changed)
+    {
+        var list = values.ToList();
+        // a row of radio buttons of their own, each as wide as its word: the
+        // RadioButtons control shares its width between its items, which
+        // left an inch of space before "100%" and its neighbours
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        var group = "choice-" + Guid.NewGuid().ToString("N");
+        var drawing = true;
+        foreach (var (value, label) in list)
+        {
+            var button = new RadioButton
+            {
+                Content = label,
+                GroupName = group,
+                IsChecked = value == picked,
+                MinWidth = 0,
+            };
+            button.Checked += (_, _) =>
+            {
+                // the pick marked in code is not the user choosing it
+                if (!drawing) changed(value);
+            };
+            row.Children.Add(button);
+        }
+        drawing = false;
+        return row;
+    }
+
+    /// <summary>
+    /// A setting with too many values for a row of buttons: a button showing
+    /// the one picked, which opens the app's own menu (never a native
+    /// select, docs/code-standards.md). Changed fires once, with the value
+    /// picked.
+    /// </summary>
+    public static Button Menu(IEnumerable<(string Value, string Label)> values, string picked, Action<string> changed)
+    {
+        var list = values.ToList();
+        var button = new Button
+        {
+            Content = list.FirstOrDefault(v => v.Value == picked).Label ?? picked,
+            Padding = new Thickness(12, 4, 12, 4),
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        var menu = new MenuFlyout();
+        foreach (var (value, label) in list)
+        {
+            var item = new MenuFlyoutItem { Text = label, Tag = value };
+            if (value == picked) item.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
+            item.Click += (_, _) =>
+            {
+                if (value == picked) return;
+                button.Content = label;
+                changed(value);
+            };
+            menu.Items.Add(item);
+        }
+        button.Flyout = menu;
+        return button;
+    }
+
+    /// <summary>A heading over a group of rows, as Settings groups its parts.</summary>
+    public static TextBlock Heading(string text) => new()
+    {
+        Text = text,
+        FontSize = 12,
+        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+        Opacity = 0.7,
+        Margin = new Thickness(2, 12, 0, 6),
+    };
+
+    /// <summary>A problem said where it is seen: magpie's reason, in an InfoBar
+    /// that stays until it is closed. A null or empty text hides it.</summary>
+    public static void Say(InfoBar bar, string? text, bool bad = true)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            bar.IsOpen = false;
+            return;
+        }
+        bar.Severity = bad ? InfoBarSeverity.Warning : InfoBarSeverity.Success;
+        bar.Message = text;
+        bar.IsOpen = true;
+    }
+}

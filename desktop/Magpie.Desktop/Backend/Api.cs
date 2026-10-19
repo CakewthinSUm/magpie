@@ -964,6 +964,18 @@ public sealed class PluginsJson
     public string? Error { get; set; }
     public bool Picker { get; set; }
     public bool Mirror { get; set; }
+    /// <summary>The built-ins with accounts a plugin could run (provider.MoveCandidate).</summary>
+    public List<MoveCandidateJson> Movable { get; set; } = [];
+}
+
+/// <summary>A deprecated built-in's accounts, which a plugin can run instead.</summary>
+public sealed class MoveCandidateJson
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Package { get; set; } = "";
+    public int Accounts { get; set; }
+    public string? Error { get; set; }
 }
 
 public sealed class PluginEntryJson
@@ -981,6 +993,107 @@ public sealed class PluginEntryJson
     public bool InMagpieOnly { get; set; }
     public PluginAgentJson? Agent { get; set; }
     public PluginPageJson? Page { get; set; }
+    /// <summary>A git plugin's installed package and commit, and the commit its
+    /// repository was at when last asked: an update is out when the two differ.</summary>
+    public string? Package { get; set; }
+    public string? Commit { get; set; }
+    public string? Head { get; set; }
+    /// <summary>Whether it is gateway middleware, and whether that is all it is.</summary>
+    public bool IsMiddleware { get; set; }
+    public bool MiddlewareOnly { get; set; }
+    public bool IsGateway { get; set; }
+    public bool GatewayOnly { get; set; }
+    /// <summary>The update magpie made to it by itself lately.</summary>
+    public PluginUpdatedJson? AutoUpdated { get; set; }
+}
+
+/// <summary>plugin.Updated: an update magpie made to a plugin by itself.</summary>
+public sealed class PluginUpdatedJson
+{
+    public string From { get; set; } = "";
+    public string To { get; set; } = "";
+    public DateTimeOffset At { get; set; }
+}
+
+// ---- /api/plugins/builtin (builtinJSON, builtins.go) ----
+
+public sealed class BuiltinJson
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    /// <summary>What it is, in a sentence, as its row says it.</summary>
+    public string Sub { get; set; } = "";
+    /// <summary>Whether it shows: its switch, or what uses it, makes it so.</summary>
+    public bool On { get; set; }
+    /// <summary>The user's own choice, before what uses it.</summary>
+    public bool Chosen { get; set; }
+    public string State { get; set; } = "";
+    public string? Why { get; set; }
+    /// <summary>How many things in magpie use it; one in use stays on.</summary>
+    public int InUse { get; set; }
+    public string? Use { get; set; }
+    /// <summary>plugins.yml's error, when it can't be read: no switch can move.</summary>
+    public string? Broken { get; set; }
+}
+
+// ---- /api/plugins/check (plugins.go, plugin.CheckNow) ----
+
+public sealed class PluginCheckJson
+{
+    public DateTimeOffset At { get; set; }
+    public PluginsJson? State { get; set; }
+}
+
+// ---- /api/plugins/market and /api/plugins/search (plugins.go, market.go) ----
+
+public sealed class PluginMarketJson
+{
+    public List<PluginListingJson> Listings { get; set; } = [];
+    public PluginsJson State { get; set; } = new();
+}
+
+public sealed class PluginListingJson
+{
+    public string Package { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Icon { get; set; }
+    public List<string> Providers { get; set; } = [];
+    public bool Community { get; set; }
+    public string? Replaces { get; set; }
+    /// <summary>"middleware", "agent", "tools" or "page"; none for a provider.</summary>
+    public string? Kind { get; set; }
+    public Dictionary<string, string>? Summary { get; set; }
+    public PluginNpmJson? Npm { get; set; }
+}
+
+/// <summary>What npm says of a package now.</summary>
+public sealed class PluginNpmJson
+{
+    public string? Version { get; set; }
+    public string? Description { get; set; }
+    public string? Publisher { get; set; }
+    public string? Homepage { get; set; }
+    public string? Repository { get; set; }
+    public int Weekly { get; set; }
+    public string? Icon { get; set; }
+}
+
+public sealed class PluginSearchJson
+{
+    public List<PluginHitJson> Hits { get; set; } = [];
+}
+
+/// <summary>plugin.Hit: a package npm's search found, and what npm says of it.</summary>
+public sealed class PluginHitJson
+{
+    public string Package { get; set; } = "";
+    public string? Version { get; set; }
+    public string? Description { get; set; }
+    public string? Publisher { get; set; }
+    public string? Homepage { get; set; }
+    public string? Repository { get; set; }
+    public int Weekly { get; set; }
+    public string? Icon { get; set; }
 }
 
 public sealed class PluginAgentJson
@@ -1023,4 +1136,51 @@ public sealed class SettingsFullJson
     /// <summary>An agent beyond loopback that couldn't be set again with the
     /// sharing key when sharing changed (agent.Rekey).</summary>
     public string? Rekeyed { get; set; }
+    /// <summary>What clicking the tray icon opens: "panel" or "window".</summary>
+    public string Tray { get; set; } = "panel";
+    /// <summary>Whether a newer magpie is looked for, and downloaded, by itself.</summary>
+    public bool NoAutoUpdate { get; set; }
+    /// <summary>How often it looks for one, in minutes (settings.UpdateEveries).</summary>
+    public int UpdateEvery { get; set; }
+    /// <summary>Whether a newer version found is downloaded at once.</summary>
+    public bool NoAutoDownload { get; set; }
+    /// <summary>Whether a downloaded update is restarted into by itself.</summary>
+    public bool AutoRestart { get; set; }
+    /// <summary>Whether the header's Update pill shows.</summary>
+    public bool NoUpdatePill { get; set; }
+    public string? UpdateMirror { get; set; }
+    /// <summary>The version the Update pill was hidden for.</summary>
+    public string? UpdateSkip { get; set; }
+    /// <summary>The built-in plugins, each with its switch (builtins.go).</summary>
+    public List<BuiltinJson> Builtins { get; set; } = [];
+    public bool GatewayOn { get; set; }
+    public string? GatewayWhy { get; set; }
+    /// <summary>Settings' own gateway mode: "on", "off", or "" for automatic.</summary>
+    public string? GatewayMode { get; set; }
+    /// <summary>MAGPIE_NO_ACCOUNTS set, which keeps account discovery off for this run.</summary>
+    public bool NoAccountsEnv { get; set; }
+    /// <summary>Whether agents' sign-ins are read and served as subscriptions.</summary>
+    public bool NoAccountDiscovery { get; set; }
+}
+
+// ---- /api/update (updateJSON, update.go) ----
+
+public sealed class UpdateJson
+{
+    /// <summary>"checking", "found", "downloading", "ready", "available",
+    /// "latest", "error", "blocked", or "" before it was ever asked.</summary>
+    public string State { get; set; } = "";
+    public string Current { get; set; } = "";
+    public string? Latest { get; set; }
+    public string? Notes { get; set; }
+    public string? Url { get; set; }
+    public string? Stuck { get; set; }
+    public string? Error { get; set; }
+    public long Done { get; set; }
+    public long Total { get; set; }
+    public long Size { get; set; }
+    public bool Retry { get; set; }
+    public string? Mirror { get; set; }
+    public bool Waiting { get; set; }
+    public bool GaveUp { get; set; }
 }

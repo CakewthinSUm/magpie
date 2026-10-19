@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="Magpie.Desktop.Pages.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Magpie.Desktop.Pages">
+
+    <!-- The settings magpie keeps (GET /api/settings, saved by POST /api/settings
+         and the routes set on their own). A SelectorBar picks the part, as the
+         page's tabs do; General and About are drawn, and each of the others
+         says which settings it has and where they are drawn. -->
+    <Grid Padding="32,24,32,0" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Spacing="4">
+            <TextBlock Text="Settings" Style="{ThemeResource TitleTextBlockStyle}" />
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <ProgressRing x:Name="Busy" IsActive="False" Width="16" Height="16" />
+                <TextBlock x:Name="Status" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </StackPanel>
+
+        <InfoBar x:Name="Problem" Grid.Row="1" IsOpen="False" IsClosable="True" />
+
+        <SelectorBar x:Name="Tabs" Grid.Row="2" SelectionChanged="Tabs_SelectionChanged">
+            <SelectorBarItem x:Name="GeneralTab" Text="General" />
+            <SelectorBarItem x:Name="UsageTab" Text="Allowances" />
+            <SelectorBarItem x:Name="NetworkTab" Text="Network and sharing" />
+            <SelectorBarItem x:Name="ModelsTab" Text="Models" />
+            <SelectorBarItem x:Name="PrivacyTab" Text="Privacy" />
+            <SelectorBarItem x:Name="ObservabilityTab" Text="Observability" />
+            <SelectorBarItem x:Name="SyncTab" Text="Sync and backup" />
+            <SelectorBarItem x:Name="AboutTab" Text="About" />
+        </SelectorBar>
+
+        <ScrollViewer x:Name="Scroller" Grid.Row="3" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="Body" Spacing="2" Padding="0,0,0,16" />
+        </ScrollViewer>
+    </Grid>
+</Page>
