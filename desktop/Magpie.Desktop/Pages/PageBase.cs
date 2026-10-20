@@ -154,6 +154,12 @@ public static class L
             case NavigationViewItemHeader { Content: string header } head:
                 head.Content = T(header);
                 break;
+            // a page's tabs, whose words are the bar's own rather than a
+            // TextBlock's: a strip hidden while the sidebar lists the tabs is
+            // not realized, so its words are set here for when it comes back
+            case SelectorBarItem { Text: { Length: > 0 } tab } item:
+                item.Text = T(tab);
+                break;
             case CheckBox { Content: string check } box:
                 box.Content = T(check);
                 break;
@@ -440,6 +446,11 @@ public static class PageKitUI
     /// the system has no such brush (a page still draws, plainly).</summary>
     private static Microsoft.UI.Xaml.Media.Brush? ThemeBrush(string key) =>
         Application.Current.Resources.TryGetValue(key, out var v) ? v as Microsoft.UI.Xaml.Media.Brush : null;
+
+    /// <summary>A theme's brush by name, for a control built outside a page
+    /// (the sidebar's badge): none when the system has no such brush, and the
+    /// control keeps its own.</summary>
+    public static Microsoft.UI.Xaml.Media.Brush? Brush(string key) => ThemeBrush(key);
 
     /// <summary>A row of choices: the product rule is no native select, so a
     /// setting with a few values is a row of radio buttons, the picked one

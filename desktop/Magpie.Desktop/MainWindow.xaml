@@ -41,11 +41,12 @@
                     Background="Transparent"
                     Margin="0,48,0,0"
                     IsBackButtonVisible="Collapsed"
-                    IsSettingsVisible="True"
+                    IsSettingsVisible="False"
                     PaneDisplayMode="Auto"
                     OpenPaneLength="240"
                     CompactPaneLength="48"
-                    SelectionChanged="Nav_SelectionChanged">
+                    SelectionChanged="Nav_SelectionChanged"
+                    ItemInvoked="Nav_ItemInvoked">
 
         <NavigationView.PaneHeader>
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="4,0,0,0">
@@ -70,6 +71,16 @@
 
             <NavigationViewItemHeader Content="Extend" />
             <NavigationViewItem Content="Plugins" Tag="plugins"><NavigationViewItem.Icon><FontIcon Glyph="&#xE710;"/></NavigationViewItem.Icon></NavigationViewItem>
+
+            <!-- Settings last in the pane, where Windows puts it, as an item
+                 of the list rather than the NavigationView's own Settings
+                 item or a footer one: only a list item can carry the
+                 settings' parts under it, as magpie's page lists them under
+                 Settings -->
+            <NavigationViewItemSeparator />
+            <NavigationViewItem x:Name="SettingsItem" Content="Settings" Tag="settings">
+                <NavigationViewItem.Icon><FontIcon Glyph="&#xE713;"/></NavigationViewItem.Icon>
+            </NavigationViewItem>
         </NavigationView.MenuItems>
 
         <NavigationView.PaneFooter>

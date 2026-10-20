@@ -14,10 +14,32 @@ namespace Magpie.Desktop.Pages;
 /// plugins to install (GET /api/plugins and its builtin, market and search
 /// routes; every write answers with the whole list, as the page's do).
 /// </summary>
-public sealed partial class PluginsPage : Page, IRefreshable
+public sealed partial class PluginsPage : Page, IRefreshable, ITabbed
 {
     /// <summary>What the title bar's refresh asks of this page.</summary>
     public PageKit Kit => new() { Refresh = LoadAsync };
+
+    /// <summary>The page's tabs, in the page's order (plugins.js): the
+    /// built-ins, the market, and what is installed, which says how many
+    /// and marks how many of them have an update.</summary>
+    public IReadOnlyList<PageTab> TabList
+    {
+        get
+        {
+            var plugins = _installed?.Plugins ?? [];
+            var updates = plugins.Count(p => !p.Off && UpdateOut(p));
+            return
+            [
+                new("builtin", "Built-in"),
+                new("discover", "Discover"),
+                new("installed", "Installed", plugins.Count > 0 ? plugins.Count : null, updates),
+            ];
+        }
+    }
+
+    public event EventHandler? TabsChanged;
+
+    public FrameworkElement Strip => Tabs;
 
     /// <summary>Which part is shown: "installed", "builtin" or "discover".</summary>
     private string _part = "installed";
@@ -41,6 +63,40 @@ public sealed partial class PluginsPage : Page, IRefreshable
 
     public PluginsPage() => InitializeComponent();
 
+    public string Tab => _part;
+
+    /// <summary>Shows a part, as clicking its tab in the page's own strip
+    /// does.</summary>
+    public void SelectTab(string id)
+    {
+        if (id == _part || TabList.All(t => t.Id != id)) return;
+        ShowPart(id);
+    }
+
+    /// <summary>The part shown, its tab picked, and the part drawn. The bar
+    /// raises no change for a pick made before its template is up, so the
+    /// part is set here as well as by the bar.</summary>
+    private void ShowPart(string id)
+    {
+        _part = id;
+        _settingPart = true;
+        try
+        {
+            Tabs.SelectedItem = id switch
+            {
+                "builtin" => BuiltinTab,
+                "discover" => DiscoverTab,
+                _ => InstalledTab,
+            };
+        }
+        finally { _settingPart = false; }
+        // the part is what the page was last on, for the row clicked in the pane
+        TabMemory.Set("plugins", _part);
+        Draw();
+    }
+
+    private bool _settingPart;
+
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
@@ -50,16 +106,8 @@ public sealed partial class PluginsPage : Page, IRefreshable
         Scroller.SizeChanged += (_, args) => Body.Width = Math.Max(0, args.NewSize.Width - 2);
         // a part named on the command line (`plugins&tab=discover`), as the
         // page's own links name one; the bar's own answer says which it is
-        var named = (e.Parameter as string ?? "").Split('&').FirstOrDefault(s => s.StartsWith("tab=", StringComparison.Ordinal)) is { Length: > 4 } t ? t[4..] : "";
-        Tabs.SelectedItem = named switch
-        {
-            "builtin" => BuiltinTab,
-            "discover" => DiscoverTab,
-            _ => InstalledTab,
-        };
-        // the bar raises no change for what is picked before its template is
-        // up, so the part is set here too
-        _part = named is "builtin" or "discover" ? named : "installed";
+        var named = TabsOf.Named(e.Parameter as string ?? "");
+        ShowPart(named is "builtin" or "discover" or "installed" ? named : "installed");
         await LoadAsync();
     }
 
@@ -100,10 +148,12 @@ public sealed partial class PluginsPage : Page, IRefreshable
 
     private void Tabs_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
     {
-        _part = ReferenceEquals(sender.SelectedItem, BuiltinTab) ? "builtin"
+        if (_settingPart) return;
+        var id = ReferenceEquals(sender.SelectedItem, BuiltinTab) ? "builtin"
             : ReferenceEquals(sender.SelectedItem, DiscoverTab) ? "discover"
             : "installed";
-        Draw();
+        if (id == _part) return;
+        ShowPart(id);
     }
 
     private void Draw()
@@ -111,6 +161,9 @@ public sealed partial class PluginsPage : Page, IRefreshable
         Body.Children.Clear();
         PageKitUI.Say(Problem, _installed?.Error);
         FootBar.Visibility = _part == "installed" ? Visibility.Visible : Visibility.Collapsed;
+        // what the tabs say they hold (and what has an update) is what was
+        // just read: the sidebar's rows under the page are drawn again
+        TabsChanged?.Invoke(this, EventArgs.Empty);
         switch (_part)
         {
             case "builtin":
@@ -144,12 +197,7 @@ public sealed partial class PluginsPage : Page, IRefreshable
                 Margin = new Thickness(2, 8, 2, 8),
             });
             var go = new Button { Content = "Discover plugins", HorizontalAlignment = HorizontalAlignment.Left };
-            go.Click += (_, _) =>
-            {
-                Tabs.SelectedItem = DiscoverTab;
-                _part = "discover";
-                Draw();
-            };
+            go.Click += (_, _) => ShowPart("discover");
             Body.Children.Add(go);
             return;
         }

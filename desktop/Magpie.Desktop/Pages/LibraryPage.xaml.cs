@@ -14,10 +14,39 @@ namespace Magpie.Desktop.Pages;
 /// skills/import). Editing text, adding a server and installing a skill stay
 /// the page's own, and each section says so.
 /// </summary>
-public sealed partial class LibraryPage : Page, IRefreshable
+public sealed partial class LibraryPage : Page, IRefreshable, ITabbed
 {
     /// <summary>What the title bar's refresh asks of this page.</summary>
     public PageKit Kit => new() { Refresh = LoadAsync };
+
+    /// <summary>The page's tabs, as the page names them (libTab): the
+    /// instructions, the MCP servers and the skills, the two latter with
+    /// what the library holds of each. The page's Hooks, Subagents and RTK
+    /// tabs are not drawn here yet, so the sidebar lists these three.</summary>
+    public IReadOnlyList<PageTab> TabList
+    {
+        get
+        {
+            var mcp = _data.Servers.Count;
+            var skills = _data.Skills.Count;
+            return
+            [
+                new("instructions", "Instructions"),
+                new("mcp", "MCP servers", mcp > 0 ? mcp : null),
+                new("skills", "Skills", skills > 0 ? skills : null),
+            ];
+        }
+    }
+
+    public event EventHandler? TabsChanged;
+
+    public FrameworkElement Strip => Tabs;
+
+    /// <summary>The section shown: "instructions", "mcp" or "skills".</summary>
+    private string _section = "instructions";
+    private bool _settingSection;
+
+    public string Tab => _section;
 
     private LibraryJson _data = new();
     private readonly Dictionary<string, string> _agentNames = new(StringComparer.Ordinal);
@@ -27,12 +56,49 @@ public sealed partial class LibraryPage : Page, IRefreshable
     /// click, one write per agent each time the page is read again.</summary>
     private bool _drawing;
 
-    public LibraryPage() => InitializeComponent();
+    public LibraryPage()
+    {
+        InitializeComponent();
+        Tabs.Loaded += (_, _) => ShowSection(_section);
+    }
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        // the section a link named (`library&tab=mcp`), as the page's own
+        // tabs name them; else the one the reader left it on
+        var named = TabsOf.Named(e.Parameter as string ?? "");
+        if (named is "instructions" or "mcp" or "skills") _section = named;
         await LoadAsync();
+    }
+
+    /// <summary>Shows a section, as clicking its tab in the page's own strip
+    /// does: one panel in sight, and its tab picked.</summary>
+    public void SelectTab(string id)
+    {
+        if (id == _section || TabList.All(t => t.Id != id)) return;
+        ShowSection(id);
+    }
+
+    private void ShowSection(string id)
+    {
+        _section = id;
+        _settingSection = true;
+        try { Tabs.SelectedItem = Tabs.Items.FirstOrDefault(i => (string?)i.Tag == id); }
+        finally { _settingSection = false; }
+        InstructionsPanel.Visibility = id == "instructions" ? Visibility.Visible : Visibility.Collapsed;
+        ServersPanel.Visibility = id == "mcp" ? Visibility.Visible : Visibility.Collapsed;
+        SkillsPanel.Visibility = id == "skills" ? Visibility.Visible : Visibility.Collapsed;
+        // the section is what the page was last on, for the row clicked in the pane
+        TabMemory.Set("library", id);
+        TabsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void Tabs_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        if (_settingSection) return;
+        if (sender.SelectedItem?.Tag is not string id || id == _section) return;
+        ShowSection(id);
     }
 
     private async Task LoadAsync()
@@ -69,6 +135,8 @@ public sealed partial class LibraryPage : Page, IRefreshable
             if (_data.Partial) parts.Add("skills found in the agents are still being read");
             Footer.Text = string.Join(" · ", parts);
             Notice.IsOpen = false;
+            // what the tabs say they hold is what was just read
+            ShowSection(_section);
         }
         finally { _drawing = false; }
     }
@@ -368,16 +436,6 @@ public sealed partial class LibraryPage : Page, IRefreshable
     /// picture read already, or none until the read lands (LoadAsync draws
     /// the page again when it has).</summary>
     private static ImageSource? IconOf(string icon) => PageKitUI.IconCached(icon);
-
-    /// <summary>The section buttons, as the page's three tabs: one panel is
-    /// on at a time.</summary>
-    private void Sections_Click(object sender, RoutedEventArgs e)
-    {
-        var tag = (sender as Button)?.Tag as string ?? "instructions";
-        InstructionsPanel.Visibility = tag == "instructions" ? Visibility.Visible : Visibility.Collapsed;
-        ServersPanel.Visibility = tag == "servers" ? Visibility.Visible : Visibility.Collapsed;
-        SkillsPanel.Visibility = tag == "skills" ? Visibility.Visible : Visibility.Collapsed;
-    }
 
     private void Reload_Click(object sender, RoutedEventArgs e) => _ = LoadAsync();
 }

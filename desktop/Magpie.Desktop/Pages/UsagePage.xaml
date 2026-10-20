@@ -16,6 +16,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <!-- the tab in sight: the allowances and figures, or the calls -->
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -27,7 +28,14 @@
 
             <StackPanel Spacing="10">
                 <TextBlock Text="Usage" Style="{ThemeResource TitleTextBlockStyle}" />
-                <StackPanel Orientation="Horizontal" Spacing="12">
+                <!-- the page's two tabs and its period on one line, as the
+                     page's head has them; the sidebar lists the tabs in their
+                     place while it has room -->
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <SelectorBar x:Name="Tabs" SelectionChanged="Tabs_SelectionChanged">
+                        <SelectorBarItem Text="Overview" Tag="usage" />
+                        <SelectorBarItem Text="Requests" Tag="requests" />
+                    </SelectorBar>
                     <SelectorBar x:Name="Period" SelectionChanged="Period_SelectionChanged">
                         <SelectorBarItem Text="Today" Tag="today" />
                         <SelectorBarItem Text="7 days" Tag="7d" />
@@ -57,9 +65,63 @@
                        TextWrapping="Wrap" />
         </StackPanel>
 
+        <!-- Requests: the period's calls, newest first, a page at a time.
+             The filters are what the period has (its agents and providers),
+             the status, and a search; the table says each call's tokens, its
+             cost and how it ended. -->
+        <Grid x:Name="RequestsPane" Grid.Row="2" RowSpacing="8" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- a narrow window puts the search and the export on a line of
+                 their own under the filters, as the page's own strip does -->
+            <StackPanel Spacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="AgentPick" Click="AgentPick_Click" Content="All agents" />
+                    <Button x:Name="ProviderPick" Click="ProviderPick_Click" Content="All providers" />
+                    <SelectorBar x:Name="StatusPick" SelectionChanged="StatusPick_SelectionChanged">
+                        <SelectorBarItem Text="All" Tag="" />
+                        <SelectorBarItem Text="Failed" Tag="failed" />
+                        <SelectorBarItem Text="Retried" Tag="retried" />
+                    </SelectorBar>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBox x:Name="Find" Width="300" PlaceholderText="Search models, providers, sessions"
+                             TextChanged="Find_TextChanged" />
+                    <Button x:Name="ExportCsv" Click="ExportCsv_Click" Content="Export CSV" />
+                </StackPanel>
+            </StackPanel>
+
+            <TextBlock x:Name="RequestsSum" Grid.Row="1" FontSize="12" Opacity="0.8" TextWrapping="Wrap" />
+
+            <Grid Grid.Row="2">
+                <!-- the table at its own width, as the page's is: a window
+                     narrower than its columns scrolls it sideways -->
+                <ScrollViewer x:Name="RequestsScroll" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto"
+                              SizeChanged="RequestsScroll_SizeChanged">
+                    <StackPanel x:Name="RequestsBody" Spacing="2" Padding="0,0,0,8" />
+                </ScrollViewer>
+                <TextBlock x:Name="RequestsNone" Visibility="Collapsed" Opacity="0.8"
+                           TextWrapping="Wrap" VerticalAlignment="Top" Margin="2,8,0,0"
+                           Text="No requests match these filters." />
+            </Grid>
+
+            <StackPanel x:Name="Pager" Grid.Row="3" Orientation="Horizontal" Spacing="12"
+                        Visibility="Collapsed" Padding="0,0,0,16">
+                <Button x:Name="Newer" Click="Newer_Click" Content="Newer" />
+                <TextBlock x:Name="PagerText" FontSize="12" VerticalAlignment="Center" Opacity="0.8" />
+                <Button x:Name="Older" Click="Older_Click" Content="Older" />
+            </StackPanel>
+        </Grid>
+
         <!-- scrolling down only: the cards wrap to the window's width, and a
              content wider than it would put the cost total out of sight -->
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
+        <ScrollViewer x:Name="OverviewScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled">
             <StackPanel Spacing="20" Padding="0,0,0,24">
 

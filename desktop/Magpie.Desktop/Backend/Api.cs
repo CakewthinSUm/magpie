@@ -335,6 +335,8 @@ public class TotalsJson
 {
     public int Calls { get; set; }
     public int Errors { get; set; }
+    /// <summary>Those answered after a try that failed first (usage.Totals).</summary>
+    public int Retried { get; set; }
     public int Input { get; set; }
     public int Output { get; set; }
     public int CacheRead { get; set; }
@@ -385,42 +387,93 @@ public sealed class LedgerJson : TotalsJson
     public string Period { get; set; } = "";
     public List<LedgerRowJson> Rows { get; set; } = [];
     public int Offset { get; set; }
+    /// <summary>The rows the filter keeps, on every page.</summary>
     public int Total { get; set; }
     public string Bucket { get; set; } = "";
     public string? Day { get; set; }
+    /// <summary>The agents with calls in the period, for the filter.</summary>
     public List<NamedJson> Agents { get; set; } = [];
     public List<NamedJson> Providers { get; set; } = [];
     public List<string> Purposes { get; set; } = [];
 }
 
+/// <summary>
+/// One call of the ledger (usageapi.Row, usage.Record with the names the
+/// page shows it by). The names are the record's own: it spells its tokens
+/// <c>in</c>, <c>out</c>, <c>cache_read</c> and its error <c>err</c>, so
+/// those are written out here rather than derived from the property.
+/// </summary>
 public sealed class LedgerRowJson
 {
+    [System.Text.Json.Serialization.JsonPropertyName("route_id")]
     public long RouteId { get; set; }
+    /// <summary>The call's time (<c>t</c>).</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("t")]
     public DateTimeOffset T { get; set; }
     public string Agent { get; set; } = "";
     public string AgentName { get; set; } = "";
     public string Icon { get; set; } = "";
     public string Provider { get; set; } = "";
     public string ProviderName { get; set; } = "";
+    /// <summary>Where the call went: the provider's host then
+    /// (usage.Record.Host).</summary>
+    public string? Host { get; set; }
+    /// <summary>The model the vendor served (usage.Record.Model).</summary>
     public string Model { get; set; } = "";
+    /// <summary>The model the agent asked for: a magpie alias, a group, or
+    /// provider/model (usage.Record.Requested, <c>req</c>).</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("req")]
     public string? Requested { get; set; }
     public string? Served { get; set; }
+    /// <summary>The subscription account that answered the call.</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("providerAccount")]
     public string? ProviderAccount { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("in")]
     public int Input { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("out")]
     public int Output { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("cache_read")]
     public int CacheRead { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("cache_write")]
     public int CacheWrite { get; set; }
+    public int Reasoning { get; set; }
+    /// <summary>The call's ms, from the request to the end of its reply.</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("ms")]
+    public long Millis { get; set; }
+    /// <summary>The ms to its first content; 0 for a reply not streamed.</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("ttft_ms")]
+    public long Ttft { get; set; }
     public double Cost { get; set; }
     public bool Priced { get; set; }
     public bool Swapped { get; set; }
     public int Status { get; set; }
+    /// <summary>Why the call failed, in the vendor's words (usage.Record.Error,
+    /// <c>err</c>).</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("err")]
     public string? Error { get; set; }
+    /// <summary>What the vendor's body called the error (rate_limit_error).</summary>
+    public string? ErrType { get; set; }
     public string? Purpose { get; set; }
     public string? Session { get; set; }
+    /// <summary>The other computer the call was made on, when sync brought
+    /// it (<c>computer</c>); the name is usageapi.Row's own.</summary>
     public string? ComputerName { get; set; }
     public string? CallerKeyLabel { get; set; }
+    /// <summary>What the agent made the call for, when it isn't a turn of
+    /// the conversation (a Codex subagent's review, compact…).</summary>
     public string? Kind { get; set; }
     public string? Access { get; set; }
+    /// <summary>The computer whose magpie passed the call on, for one a
+    /// Remote magpie provider forwarded.</summary>
+    public string? Via { get; set; }
+    /// <summary>"log" for a call read from an agent's own session file,
+    /// which the gateway never saw; "" for one it logged.</summary>
+    public string? Source { get; set; }
+    /// <summary>How many tries the gateway made at the request this row ends,
+    /// when there was more than one.</summary>
+    public int Tries { get; set; }
+    /// <summary>This try failed and the request was handed on to the next.</summary>
+    public bool HandedOn { get; set; }
 }
 
 public sealed class NamedJson

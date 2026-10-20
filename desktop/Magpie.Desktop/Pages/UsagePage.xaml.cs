@@ -17,44 +17,128 @@ namespace Magpie.Desktop.Pages;
 /// the vendors and can be slow or refused, so the figures never wait for
 /// them, and a refusal is the card's own to say.
 /// </summary>
-public sealed partial class UsagePage : Page, IRefreshable
+public sealed partial class UsagePage : Page, IRefreshable, ITabbed
 {
     /// <summary>What the title bar's refresh asks of this page.</summary>
     public PageKit Kit => new() { Refresh = LoadAsync };
+
+    /// <summary>The page's tabs, as the page names them (usageTab in
+    /// page.js): the allowances and the period's figures, and the calls
+    /// themselves. The page's own Sessions and Context tabs are not drawn
+    /// here yet, so the sidebar lists these two.</summary>
+    public IReadOnlyList<PageTab> TabList { get; } =
+    [
+        new("usage", "Overview"),
+        new("requests", "Requests"),
+    ];
+
+    public event EventHandler? TabsChanged;
+
+    public FrameworkElement Strip => Tabs;
+
+    /// <summary>The tab shown: "usage" (Overview) until another is picked.</summary>
+    private string _tab = "usage";
+
+    public string Tab => _tab;
 
     /// <summary>The period shown, as the page's own picker names it
     /// (usage.Period, internal/usage): today until another is picked.</summary>
     private string _period = "today";
     private bool _settingPeriod;
+    private bool _settingTab;
     /// <summary>The allowances last drawn, so a redraw of the page after its
     /// pictures are read draws the same cards.</summary>
     private List<QuotaJson> _quotas = [];
 
+    // ---- the Requests tab's state, as the page keeps it: a filter, a
+    // search, and the page of rows shown (100 at a time, newest first)
+    private const int LedgerPage = 100;
+    private string _ledAgent = "";
+    private string _ledProvider = "";
+    private string _ledStatus = "";
+    private string _ledQuery = "";
+    private int _ledOffset;
+    private LedgerJson? _ledger;
+    private bool _ledgerDirty = true;
+    /// <summary>Set while the status strip is set in code, whose change is
+    /// not the reader picking one.</summary>
+    private bool _settingStatus;
+
     public UsagePage()
     {
         InitializeComponent();
-        // the picker shows the period it starts on once it is in the tree:
-        // its indicator is laid out from the selection when it loads, not
-        // when it is set from here
+        // the pickers show what they start on once they are in the tree:
+        // their indicators are laid out from the selection when they load,
+        // not when they are set from here
         Period.Loaded += (_, _) =>
         {
             _settingPeriod = true;
             try { Period.SelectedItem = Period.Items.FirstOrDefault(i => (string?)i.Tag == _period); }
             finally { _settingPeriod = false; }
         };
+        Tabs.Loaded += (_, _) => ShowTab(_tab, read: false);
+        // the status starts at All, which the strip says by marking it
+        StatusPick.Loaded += (_, _) =>
+        {
+            _settingStatus = true;
+            try { StatusPick.SelectedItem = StatusPick.Items.FirstOrDefault(i => (string?)i.Tag == _ledStatus); }
+            finally { _settingStatus = false; }
+        };
     }
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        // the tab a link named (`usage&tab=requests`), as the page's own
+        // links name one; else the page's first
+        var named = TabsOf.Named(e.Parameter as string ?? "");
+        if (named.Length > 0 && TabList.Any(t => t.Id == named)) _tab = named;
         await LoadAsync();
     }
 
-    /// <summary>Reads both halves: the figures for the period, and the
-    /// allowances. A refusal of the allowances is said on the page and left
-    /// the figures standing.</summary>
+    /// <summary>Shows a tab, as clicking it in the page's own strip does:
+    /// the one panel in sight, and what it shows read if it has nothing
+    /// drawn yet.</summary>
+    public void SelectTab(string id)
+    {
+        if (id == _tab || TabList.All(t => t.Id != id)) return;
+        ShowTab(id, read: true);
+    }
+
+    private void ShowTab(string id, bool read)
+    {
+        _tab = id;
+        _settingTab = true;
+        try { Tabs.SelectedItem = Tabs.Items.FirstOrDefault(i => (string?)i.Tag == id); }
+        finally { _settingTab = false; }
+        var requests = id == "requests";
+        OverviewScroll.Visibility = requests ? Visibility.Collapsed : Visibility.Visible;
+        RequestsPane.Visibility = requests ? Visibility.Visible : Visibility.Collapsed;
+        // the cost total is the Overview's own figure
+        CostTotal.Visibility = requests ? Visibility.Collapsed : Visibility.Visible;
+        CostNote.Visibility = CostTotal.Visibility;
+        // the tab is what the page was last on, for the row clicked in the pane
+        TabMemory.Set("usage", id);
+        TabsChanged?.Invoke(this, EventArgs.Empty);
+        if (read && requests) _ = LoadLedgerAsync();
+    }
+
+    private void Tabs_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        if (_settingTab) return;
+        if (sender.SelectedItem?.Tag is not string id || id == _tab) return;
+        ShowTab(id, read: true);
+    }
+
+    /// <summary>Reads the tab in sight: the figures and the allowances, or
+    /// the period's calls.</summary>
     private async Task LoadAsync()
     {
+        if (_tab == "requests")
+        {
+            await LoadLedgerAsync();
+            return;
+        }
         var period = _period;
         string? why = null;
         await PageKit.RunAsync(async () =>
@@ -92,6 +176,312 @@ public sealed partial class UsagePage : Page, IRefreshable
             AllowancesError.Message = why;
             AllowancesError.IsOpen = true;
         }
+    }
+
+    // ---- the Requests tab -----------------------------------------------
+
+    /// <summary>The calls the filters keep, a page at a time, as the page
+    /// reads them (GET /api/usage/requests, usageapi.Ledger).</summary>
+    private async Task LoadLedgerAsync()
+    {
+        var period = _period;
+        await PageKit.RunAsync(async () =>
+        {
+            _ledger = await App.CurrentApp.Client.GetAsync<LedgerJson>("usage/requests?" + LedgerQuery()) ?? new LedgerJson();
+            _ledgerDirty = false;
+            // the period or a filter changed while this read was out: its
+            // answer is not what the page now asks for
+            if (period != _period) return;
+            DrawLedger();
+            // each row's agent's own mark, drawn on the pass after it is read
+            await PageKitUI.LoadIconsAsync(_ledger.Rows.Select(r => r.Icon), () =>
+            {
+                if (_tab == "requests" && !_ledgerDirty) DrawLedger();
+            });
+        }, Status, Busy);
+    }
+
+    /// <summary>The query the ledger's filters make, as the page's own
+    /// ledParams does: only what is picked, so an unfiltered read is the
+    /// period's whole list.</summary>
+    private string LedgerQuery()
+    {
+        var q = new List<string>
+        {
+            "period=" + Uri.EscapeDataString(_period),
+            "offset=" + _ledOffset,
+            "limit=" + LedgerPage,
+        };
+        if (_ledAgent.Length > 0) q.Add("agent=" + Uri.EscapeDataString(_ledAgent));
+        if (_ledProvider.Length > 0) q.Add("provider=" + Uri.EscapeDataString(_ledProvider));
+        if (_ledStatus.Length > 0) q.Add(_ledStatus + "=1");
+        if (_ledQuery.Trim().Length > 0) q.Add("q=" + Uri.EscapeDataString(_ledQuery.Trim()));
+        return string.Join("&", q);
+    }
+
+    /// <summary>The table's own width, as wide as its columns: the body is
+    /// given it, so every row is laid out at the same width and a window
+    /// narrower than it scrolls the table sideways.</summary>
+    private void RequestsScroll_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var width = TableWidth();
+        if (Math.Abs(RequestsBody.Width - width) > 0.5) RequestsBody.Width = width;
+    }
+
+    private void DrawLedger()
+    {
+        var l = _ledger ?? new LedgerJson();
+        // the filters say what the period has, and the picks say what is on
+        AgentPick.Content = _ledAgent.Length > 0 ? NameOf(l.Agents, _ledAgent) : "All agents";
+        ProviderPick.Content = _ledProvider.Length > 0 ? NameOf(l.Providers, _ledProvider) : "All providers";
+
+        var sum = new List<string> { Count(l.Total) + (l.Total == 1 ? " request" : " requests") };
+        if (l.Total > 0)
+        {
+            sum.Add(Count(l.Input) + " in");
+            sum.Add(Count(l.Output) + " out");
+            sum.Add(Count(l.CacheWrite) + " cache write");
+            sum.Add(Count(l.CacheRead) + " cache read");
+            if (l.Errors > 0) sum.Add(l.Errors + " failed");
+            if (l.Retried > 0) sum.Add(l.Retried + " answered on a retry");
+            if (l.Cost > 0) sum.Add("≈" + Money(l.Cost));
+        }
+        RequestsSum.Text = string.Join(" · ", sum);
+
+        RequestsBody.Children.Clear();
+        RequestsNone.Visibility = l.Total == 0 ? Visibility.Visible : Visibility.Collapsed;
+        RequestsNone.Text = Filtered()
+            ? "No requests match these filters."
+            : _period switch
+            {
+                "today" => "No calls today.",
+                "7d" => "No calls in the last 7 days.",
+                "30d" => "No calls in the last 30 days.",
+                _ => "No calls yet.",
+            };
+        if (l.Total > 0)
+        {
+            RequestsBody.Children.Add(LedgerHead());
+            foreach (var r in l.Rows) RequestsBody.Children.Add(LedgerRowOf(r));
+        }
+
+        // a page at a time, the newest first
+        Pager.Visibility = l.Total > LedgerPage ? Visibility.Visible : Visibility.Collapsed;
+        Newer.IsEnabled = l.Offset > 0;
+        Older.IsEnabled = l.Offset + l.Rows.Count < l.Total;
+        PagerText.Text = l.Rows.Count == 0
+            ? ""
+            : $"{Count(l.Offset + 1)}–{Count(l.Offset + l.Rows.Count)} of {Count(l.Total)}";
+    }
+
+    private bool Filtered() => _ledAgent.Length > 0 || _ledProvider.Length > 0 || _ledStatus.Length > 0 || _ledQuery.Trim().Length > 0;
+
+    private static string NameOf(List<NamedJson> names, string id) =>
+        names.FirstOrDefault(n => n.Id == id)?.Name is { Length: > 0 } name ? name : id;
+
+    /// <summary>The table's columns, as the page's LED_COLS has them: the
+    /// time, who asked, the model asked for, where it went, the tokens, the
+    /// cost, how long it took, and how it ended. Each is as wide as what it
+    /// holds: a window narrower than them all scrolls the table sideways, as
+    /// the page's own table does, rather than cutting a name to two letters.
+    /// </summary>
+    private static readonly (string Name, double Width, bool Right)[] LedgerColumns =
+    [
+        ("Time", 120, false),
+        ("Agent", 170, false),
+        ("Requested", 160, false),
+        ("Provider", 220, false),
+        ("In", 70, true),
+        ("Out", 70, true),
+        ("Cache read", 90, true),
+        ("Cost", 90, true),
+        ("Duration", 90, true),
+        ("Status", 130, false),
+    ];
+
+    /// <summary>How wide the table is with every column at its own width: a
+    /// window narrower than this scrolls it sideways.</summary>
+    private static double TableWidth() =>
+        LedgerColumns.Sum(c => c.Width) + 12 * (LedgerColumns.Length - 1) + 24;
+
+    /// <summary>One row of the table: its columns at their own widths, and the
+    /// table's own width given to it, so a row's figures line up with the
+    /// header's and with every other row's, scrolled sideways or not.</summary>
+    private static Grid LedgerGrid() => new()
+    {
+        ColumnSpacing = 12,
+        Padding = new Thickness(12, 6, 12, 6),
+        // the row's own height: a Grid of TextBlocks in a StackPanel measures
+        // them at no height at all, and every row came out invisible
+        MinHeight = 30,
+        Width = TableWidth(),
+    };
+
+    private static Grid Columns(Grid grid)
+    {
+        foreach (var (_, width, _) in LedgerColumns) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(width) });
+        return grid;
+    }
+
+    private Grid LedgerHead()
+    {
+        var head = Columns(LedgerGrid());
+        for (var i = 0; i < LedgerColumns.Length; i++)
+
+        {
+            var (name, _, right) = LedgerColumns[i];
+            var text = new TextBlock
+            {
+                Text = name,
+                FontSize = 12,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Opacity = 0.8,
+                HorizontalAlignment = right ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+            };
+            Grid.SetColumn(text, i);
+            head.Children.Add(text);
+        }
+        return head;
+    }
+
+    /// <summary>One call, as a row: a failed one says its reason in the
+    /// status cell and takes the critical ink, as the page's rows do.</summary>
+    private Grid LedgerRowOf(LedgerRowJson r)
+    {
+        var failed = r.Status >= 400 || r.Error is { Length: > 0 };
+        var row = Columns(LedgerGrid());
+        row.Background = failed ? PageKitUI.Brush("SystemFillColorCriticalBackgroundBrush") : null;
+        var culture = System.Globalization.CultureInfo.InvariantCulture;
+        var at = r.T.LocalDateTime;
+        var agent = r.AgentName is { Length: > 0 } a ? a : r.Agent;
+        if (r.ComputerName is { Length: > 0 } computer) agent += " · on " + computer;
+        var where = r.ProviderName is { Length: > 0 } p ? p : r.Provider;
+        if (r.Host is { Length: > 0 } host) where += " · " + host;
+
+        var cells = new (string Text, bool Right, string Tip)[]
+        {
+            (at.Date == DateTime.Today ? at.ToString("HH:mm:ss", culture) : at.ToString("d MMM HH:mm", culture), false, at.ToString("g", System.Globalization.CultureInfo.CurrentCulture)),
+            (agent, false, r.Session is { Length: > 0 } s ? "session " + s : ""),
+            (r.Requested ?? "—", false, ""),
+            (where, false, ""),
+            (Count(r.Input), true, ""),
+            (Count(r.Output), true, r.Reasoning > 0 ? Count(r.Reasoning) + " reasoning, inside output" : ""),
+            (r.CacheRead > 0 ? Count(r.CacheRead) : "—", true, ""),
+            (r.Priced ? "≈" + Money(r.Cost) : "—", true, r.Priced ? "" : "No known price for this model"),
+            (r.Millis > 0 ? Took(r.Millis) : "—", true, r.Millis > 0 ? r.Millis + " ms" : ""),
+            (failed ? (r.Status > 0 ? r.Status + (r.ErrType is { Length: > 0 } t ? " · " + t : "") : "Failed") : (r.Status > 0 ? r.Status.ToString() : "—"), false, failed ? r.Error ?? "" : ""),
+        };
+        for (var i = 0; i < cells.Length; i++)
+        {
+            var (text, right, tip) = cells[i];
+            var block = new TextBlock
+            {
+                Text = text,
+                FontSize = 12,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                HorizontalAlignment = right ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            // the ink is only ever set, never cleared: a null set here would
+            // be a local value, and a cell's own null wins over the theme's
+            // brush — the text was drawn with no paint at all
+            if (i == cells.Length - 1 && failed) block.Foreground = PageKitUI.Brush("SystemFillColorCriticalBrush");
+            if (tip.Length > 0) ToolTipService.SetToolTip(block, tip);
+            Grid.SetColumn(block, i);
+            row.Children.Add(block);
+        }
+        return row;
+    }
+
+    /// <summary>How long a call took, as the page writes it short: seconds
+    /// under a minute, then minutes.</summary>
+    private static string Took(long ms) =>
+        ms < 60_000 ? (ms / 1000.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " s"
+        : (ms / 60_000.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " min";
+
+    private void AgentPick_Click(object sender, RoutedEventArgs e)
+    {
+        var l = _ledger ?? new LedgerJson();
+        var menu = new MenuFlyout();
+        AddFilter(menu, "All agents", "", () => { _ledAgent = ""; });
+        foreach (var n in l.Agents) AddFilter(menu, n.Name, n.Id, () => { _ledAgent = n.Id; });
+        menu.ShowAt(AgentPick);
+    }
+
+    private void ProviderPick_Click(object sender, RoutedEventArgs e)
+    {
+        var l = _ledger ?? new LedgerJson();
+        var menu = new MenuFlyout();
+        AddFilter(menu, "All providers", "", () => { _ledProvider = ""; });
+        foreach (var n in l.Providers) AddFilter(menu, n.Name, n.Id, () => { _ledProvider = n.Id; });
+        menu.ShowAt(ProviderPick);
+    }
+
+    /// <summary>A filter's choice: picking it starts the list again at its
+    /// first page, as the page's own filters do.</summary>
+    private void AddFilter(MenuFlyout menu, string text, string id, Action pick)
+    {
+        var item = new MenuFlyoutItem { Text = L.T(text), Tag = id };
+        item.Click += (_, _) =>
+        {
+            pick();
+            _ledOffset = 0;
+            _ledgerDirty = true;
+            _ = LoadLedgerAsync();
+        };
+        menu.Items.Add(item);
+    }
+
+    private void StatusPick_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        if (_settingStatus) return;
+        _ledStatus = sender.SelectedItem?.Tag as string ?? "";
+        _ledOffset = 0;
+        _ledgerDirty = true;
+        _ = LoadLedgerAsync();
+    }
+
+    private async void Find_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        _ledQuery = Find.Text;
+        // the page waits for the typing to stop, as its own search does: a
+        // read a keystroke is worth is a read per keystroke
+        _findWait?.Cancel();
+        var wait = _findWait = new CancellationTokenSource();
+        try { await Task.Delay(250, wait.Token); }
+        catch (OperationCanceledException) { return; }
+        _ledOffset = 0;
+        _ledgerDirty = true;
+        await LoadLedgerAsync();
+    }
+
+    private CancellationTokenSource? _findWait;
+
+    private void Newer_Click(object sender, RoutedEventArgs e)
+    {
+        _ledOffset = Math.Max(0, (_ledger?.Offset ?? 0) - LedgerPage);
+        _ledgerDirty = true;
+        _ = LoadLedgerAsync();
+    }
+
+    private void Older_Click(object sender, RoutedEventArgs e)
+    {
+        _ledOffset = (_ledger?.Offset ?? 0) + LedgerPage;
+        _ledgerDirty = true;
+        _ = LoadLedgerAsync();
+    }
+
+    /// <summary>Saves every call the filters keep, all pages, as a CSV in
+    /// Downloads (POST /api/usage/requests/export), as the page's Export
+    /// does; magpie opens the folder it wrote it in.</summary>
+    private async void ExportCsv_Click(object sender, RoutedEventArgs e)
+    {
+        await PageKit.RunAsync(async () =>
+        {
+            var q = LedgerQuery().Split('&').Where(p => !p.StartsWith("offset=", StringComparison.Ordinal) && !p.StartsWith("limit=", StringComparison.Ordinal));
+            var saved = await App.CurrentApp.Client.PostAsync<SavedCsvJson>("usage/requests/export?" + string.Join("&", q));
+            Status.Text = saved is null ? "" : $"Saved {saved.Rows} requests to {saved.Path}";
+        }, Status, Busy);
     }
 
     /// <summary>The allowances, asked for as the page asks when the reader
@@ -307,7 +697,19 @@ public sealed partial class UsagePage : Page, IRefreshable
         await LoadAsync();
     }
 
-    private void Reload_Click(object sender, RoutedEventArgs e) => _ = LoadAsync();
+    private void Reload_Click(object sender, RoutedEventArgs e)
+    {
+        _ledgerDirty = true;
+        _ = LoadAsync();
+    }
+}
+
+/// <summary>Where the page's Export wrote the file, and how many rows it
+/// holds (gui's usage/requests/export answer).</summary>
+public sealed class SavedCsvJson
+{
+    public string Path { get; set; } = "";
+    public int Rows { get; set; }
 }
 
 /// <summary>One subscription's or key's card, as the allowances draw it.</summary>

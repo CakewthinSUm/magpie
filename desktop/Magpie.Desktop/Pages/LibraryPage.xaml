@@ -30,11 +30,15 @@
             </StackPanel>
         </StackPanel>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
-            <Button Content="Instructions" Tag="instructions" Click="Sections_Click" />
-            <Button Content="MCP servers" Tag="servers" Click="Sections_Click" />
-            <Button Content="Skills" Tag="skills" Click="Sections_Click" />
-        </StackPanel>
+        <!-- the page's own tabs, as the page names them (libTab in
+             client.js): what the agents read, the servers and the skills,
+             the two latter with what they hold. The sidebar lists them in
+             their place while it has room. -->
+        <SelectorBar x:Name="Tabs" Grid.Row="1" SelectionChanged="Tabs_SelectionChanged">
+            <SelectorBarItem Text="Instructions" Tag="instructions" />
+            <SelectorBarItem x:Name="ServersTab" Text="MCP servers" Tag="mcp" />
+            <SelectorBarItem x:Name="SkillsTab" Text="Skills" Tag="skills" />
+        </SelectorBar>
 
         <InfoBar Grid.Row="2" x:Name="Notice" IsOpen="False" IsClosable="False"
                  Severity="Warning" />

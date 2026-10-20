@@ -14,10 +14,71 @@ namespace Magpie.Desktop.Pages;
 /// (POST /api/settings and the per-setting routes), and the page is drawn
 /// again from magpie's answer.
 /// </summary>
-public sealed partial class SettingsPage : Page, IRefreshable
+public sealed partial class SettingsPage : Page, IRefreshable, ITabbed
 {
     /// <summary>What the title bar's refresh asks of this page.</summary>
     public PageKit Kit => new() { Refresh = LoadAsync };
+
+    /// <summary>The page's parts, as the page names them (SET_TABS): listed
+    /// in the sidebar under the Settings row, as the page lists them under
+    /// Settings when the window is wide enough.</summary>
+    public IReadOnlyList<PageTab> TabList { get; } =
+    [
+        new("general", "General"),
+        new("usage", "Allowances"),
+        new("network", "Network and sharing"),
+        new("models", "Models"),
+        new("privacy", "Privacy"),
+        new("otel", "Observability"),
+        new("sync", "Sync and backup"),
+        new("about", "About"),
+    ];
+
+    /// <summary>Its parts never change what they say (no counts, no update
+    /// marks), so the sidebar's rows are drawn once, when the page opens.</summary>
+    public event EventHandler? TabsChanged { add { } remove { } }
+
+    public FrameworkElement Strip => Tabs;
+
+    public string Tab => _part;
+
+    /// <summary>Shows a part, as clicking its tab in the page's own strip
+    /// does.</summary>
+    public void SelectTab(string id)
+    {
+        if (id == _part || TabList.All(t => t.Id != id)) return;
+        ShowPart(id);
+    }
+
+    /// <summary>The part shown, its tab picked, and the part drawn; Sync and
+    /// backup's own view is read as it opens, so what it shows is what is on
+    /// disk now.</summary>
+    private void ShowPart(string id)
+    {
+        _part = id;
+        _settingPart = true;
+        try
+        {
+            Tabs.SelectedItem = id switch
+            {
+                "usage" => UsageTab,
+                "network" => NetworkTab,
+                "models" => ModelsTab,
+                "privacy" => PrivacyTab,
+                "otel" => ObservabilityTab,
+                "sync" => SyncTab,
+                "about" => AboutTab,
+                _ => GeneralTab,
+            };
+        }
+        finally { _settingPart = false; }
+        // the part is what the page was last on, for the row clicked in the pane
+        TabMemory.Set("settings", _part);
+        if (_part == "sync") _ = LoadAsync();
+        else Draw();
+    }
+
+    private bool _settingPart;
 
     /// <summary>The part shown: the page's own SET_TABS names.</summary>
     private string _part = "general";
@@ -37,19 +98,8 @@ public sealed partial class SettingsPage : Page, IRefreshable
         Scroller.SizeChanged += (_, args) => Body.Width = Math.Max(0, args.NewSize.Width - 2);
         // the part a link named (`settings&tab=about`), else General; the
         // bar's own answer says which it is
-        var part = (e.Parameter as string ?? "").Split('&').FirstOrDefault(s => s.StartsWith("tab=", StringComparison.Ordinal))?[4..] ?? "";
-        _part = part is "usage" or "network" or "models" or "privacy" or "otel" or "sync" or "about" ? part : "general";
-        Tabs.SelectedItem = part switch
-        {
-            "usage" => UsageTab,
-            "network" => NetworkTab,
-            "models" => ModelsTab,
-            "privacy" => PrivacyTab,
-            "otel" => ObservabilityTab,
-            "sync" => SyncTab,
-            "about" => AboutTab,
-            _ => GeneralTab,
-        };
+        var part = TabsOf.Named(e.Parameter as string ?? "");
+        ShowPart(part is "usage" or "network" or "models" or "privacy" or "otel" or "sync" or "about" ? part : "general");
         await LoadAsync();
     }
 
@@ -88,7 +138,8 @@ public sealed partial class SettingsPage : Page, IRefreshable
 
     private void Tabs_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
     {
-        _part = ReferenceEquals(sender.SelectedItem, UsageTab) ? "usage"
+        if (_settingPart) return;
+        var id = ReferenceEquals(sender.SelectedItem, UsageTab) ? "usage"
             : ReferenceEquals(sender.SelectedItem, NetworkTab) ? "network"
             : ReferenceEquals(sender.SelectedItem, ModelsTab) ? "models"
             : ReferenceEquals(sender.SelectedItem, PrivacyTab) ? "privacy"
@@ -96,11 +147,11 @@ public sealed partial class SettingsPage : Page, IRefreshable
             : ReferenceEquals(sender.SelectedItem, SyncTab) ? "sync"
             : ReferenceEquals(sender.SelectedItem, AboutTab) ? "about"
             : "general";
+        if (id == _part) return;
         // Sync and backup's view is its own endpoint: read it as the tab
         // opens, so what it shows is what is on disk now (the CLI can have
         // changed the setup behind the window)
-        if (_part == "sync") _ = LoadAsync();
-        else Draw();
+        ShowPart(id);
     }
 
     private void Draw()

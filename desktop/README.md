@@ -42,7 +42,7 @@ wins.
 | --- | --- |
 | Agents | XAML (`Pages/AgentsPage`): the agents, their fields, and the app's own menu for a value |
 | Providers | XAML (`Pages/ProvidersPage`): the sources, their keys and sign-ins, each switched on or off in place |
-| Usage | XAML (`Pages/UsagePage`): the allowances each subscription and key has left, and a period's tokens, calls and cost by agent and model |
+| Usage | XAML (`Pages/UsagePage`): the allowances each subscription and key has left, and a period's tokens, calls and cost by agent and model; its Requests tab lists the period's calls a page at a time, with the agents, providers, status and search as filters. The page's Sessions and Context tabs are not drawn here yet |
 | Sessions | XAML (`Pages/SessionsPage`): one agent's sessions by day, the picked one's facts and resume command, and magpie's trash |
 | Library | XAML (`Pages/LibraryPage`): the instructions and their sets, the MCP servers and the skills, each given to an agent or taken from it; editing text, adding a server and installing a skill stay the page's |
 | Gateway | XAML (`Pages/GatewayPage`): the gateway's state and address, how to connect in each API, the caller keys, and the recent calls with their bodies a fold away |
@@ -79,6 +79,18 @@ title bar (`ExtendsContentIntoTitleBar`), so the NavigationView's top strip is
 the caption — the app's name at the left, the system's buttons at the right,
 the empty stretch between them dragging the window — and Mica (`MicaBackdrop`)
 shows the desktop's wallpaper, blurred and tinted, behind it and the pane.
+
+A page with tabs of its own — Usage, Library, Plugins and Settings — lists them
+in the pane under its row, as magpie's page lists them under the open page when
+the window is wide enough (`app.js`'s `navSubs`): each tab's row carries the
+view it opens (`usage&tab=requests`), the counts the page puts beside a tab
+(`Installed · 3`, `Skills · 4`) and, for a plugin with an update, the accent
+badge. The tab in sight is the row selected, and the page's own strip of tabs
+is hidden while the pane lists them — in a narrow window, whose pane is icons
+only, the strip comes back and the rows are not drawn. A page implements
+`ITabbed` (`Pages/Tabs.cs`) and the window does the rest. Settings is a footer
+menu item rather than the NavigationView's own Settings item, which is the
+only kind of row that can carry children at the pane's foot.
 
 The tray icon says what the app does: a notification when the window closes
 that magpie keeps running in the tray, and one for a `magpie://import` link,

@@ -31,10 +31,13 @@
 
         <InfoBar x:Name="Problem" Grid.Row="1" IsOpen="False" IsClosable="True" />
 
+        <!-- the page's own tabs, in the page's order (plugins.js's segs):
+             magpie's built-ins, the market, and what is installed, with how
+             many. The sidebar lists them in their place while it has room. -->
         <SelectorBar x:Name="Tabs" Grid.Row="2" SelectionChanged="Tabs_SelectionChanged">
-            <SelectorBarItem x:Name="InstalledTab" Text="Installed" />
-            <SelectorBarItem x:Name="BuiltinTab" Text="Built-in" />
-            <SelectorBarItem x:Name="DiscoverTab" Text="Discover" />
+            <SelectorBarItem x:Name="BuiltinTab" Text="Built-in" Tag="builtin" />
+            <SelectorBarItem x:Name="DiscoverTab" Text="Discover" Tag="discover" />
+            <SelectorBarItem x:Name="InstalledTab" Text="Installed" Tag="installed" />
         </SelectorBar>
 
         <!-- a card is as wide as the part, not the content it holds: without
