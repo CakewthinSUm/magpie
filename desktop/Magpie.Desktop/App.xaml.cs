@@ -163,6 +163,27 @@ public partial class App : Application
         return folder?.Path ?? "";
     }
 
+    /// <summary>Windows' file picker, for a page that needs a file (a backup
+    /// to import): its bytes, or null when nothing was picked. The page asks
+    /// here rather than opening a picker itself, which needs the window's
+    /// handle.</summary>
+    public async Task<(string Name, byte[] Data)?> ChooseFileAsync(string title, string extension)
+    {
+        var picker = new Windows.Storage.Pickers.FileOpenPicker();
+        var hwnd = _main is not null ? WinRT.Interop.WindowNative.GetWindowHandle(_main)
+            : _panel is not null ? WinRT.Interop.WindowNative.GetWindowHandle(_panel)
+            : IntPtr.Zero;
+        if (hwnd != IntPtr.Zero) WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+        picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.Downloads;
+        picker.FileTypeFilter.Add(extension);
+        var file = await picker.PickSingleFileAsync();
+        if (file is null) return null;
+        using var stream = await file.OpenStreamForReadAsync();
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory);
+        return (file.Name, memory.ToArray());
+    }
+
     /// <summary>Quits magpie and the app: the backend this app started goes
     /// with it.</summary>
     public void Quit()

@@ -58,6 +58,9 @@ public sealed partial class SettingsPage : Page, IRefreshable
         await PageKit.RunAsync(async () =>
         {
             _settings = await App.CurrentApp.Client.GetAsync<SettingsFullJson>("settings") ?? new SettingsFullJson();
+            // Sync and backup's own view is a second endpoint, read with the
+            // page so the tab is drawn from what is on disk now
+            if (_part == "sync") _sync = await App.CurrentApp.Client.GetAsync<DavSyncViewJson>("davsync") ?? _sync;
             Draw();
             // the version's own state is asked after the page is drawn: it
             // may wait on the feed
@@ -89,7 +92,11 @@ public sealed partial class SettingsPage : Page, IRefreshable
             : ReferenceEquals(sender.SelectedItem, SyncTab) ? "sync"
             : ReferenceEquals(sender.SelectedItem, AboutTab) ? "about"
             : "general";
-        Draw();
+        // Sync and backup's view is its own endpoint: read it as the tab
+        // opens, so what it shows is what is on disk now (the CLI can have
+        // changed the setup behind the window)
+        if (_part == "sync") _ = LoadAsync();
+        else Draw();
     }
 
     private void Draw()
@@ -120,8 +127,11 @@ public sealed partial class SettingsPage : Page, IRefreshable
             case "otel":
                 DrawOtel();
                 break;
+            case "sync":
+                DrawSync();
+                break;
             default:
-                DrawElsewhere();
+                DrawGeneral();
                 break;
         }
     }
@@ -353,43 +363,6 @@ public sealed partial class SettingsPage : Page, IRefreshable
             Draw();
         }, Status, Busy);
         _busy = false;
-    }
-
-    // ---- the parts not drawn here ----
-
-    /// <summary>
-    /// A part whose settings this page doesn't draw yet: its name, and the
-    /// settings it holds, so a reader knows they exist and where they are
-    /// drawn (the page magpie serves, until each is drawn here).
-    /// </summary>
-    private void DrawElsewhere()
-    {
-        var (title, what) = _part switch
-        {
-            "usage" => ("Allowances", "what the menu bar shows, how often, the allowance display and reads, currency, and the warm-ups and daily check-ins."),
-            "network" => ("Network and sharing", "the proxy, the GitHub token, the gateway's port and local-network sharing, and the web pages allowed to reach it."),
-            "models" => ("Models", "the model that describes images, the one that searches, the one that draws, and the models turned off."),
-            "privacy" => ("Privacy", "what is masked before a request goes out, and whether the agents' sign-ins are read."),
-            "otel" => ("Observability", "OpenTelemetry: where traces and metrics go, what is sent, and whether request bodies go with them."),
-            "sync" => ("Sync and backup", "a remote that keeps the setup the same on every computer, and a sealed file to carry by hand."),
-            _ => ("Settings", ""),
-        };
-        Body.Children.Add(PageKitUI.Heading(title));
-        Body.Children.Add(new TextBlock
-        {
-            Text = "Not drawn here yet: " + what,
-            TextWrapping = TextWrapping.Wrap,
-            Opacity = 0.8,
-            Margin = new Thickness(2, 0, 2, 8),
-        });
-        Body.Children.Add(new TextBlock
-        {
-            Text = "They are in Settings in magpie's own page; open " + title + " there until this page draws them.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 12,
-            Opacity = 0.6,
-            Margin = new Thickness(2, 0, 2, 8),
-        });
     }
 
     // ---- writes ----

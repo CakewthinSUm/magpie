@@ -1453,6 +1453,111 @@ public sealed class PortResultJson
     public string? Error { get; set; }
 }
 
+// ---- /api/davsync (davsync.View, davsync.go) ----
+
+/// <summary>Sync's setup and how the last sync went (davsync.View), as the
+/// Settings page's Sync and backup part shows it.</summary>
+public sealed class DavSyncViewJson
+{
+    public bool On { get; set; }
+    public string? Url { get; set; }
+    public string? User { get; set; }
+    public bool PasswordSet { get; set; }
+    public bool PassphraseSet { get; set; }
+    public bool Keys { get; set; }
+    public bool Agents { get; set; }
+    /// <summary>"webdav", "s3" or "github", when on.</summary>
+    public string? Kind { get; set; }
+    public string? Endpoint { get; set; }
+    public string? Region { get; set; }
+    public bool PathStyle { get; set; }
+    public string? Branch { get; set; }
+    public bool Library { get; set; }
+    public bool Usage { get; set; }
+    public string? UsageError { get; set; }
+    public DateTimeOffset Last { get; set; }
+    public string? Error { get; set; }
+    public NoticeJson? Notice { get; set; }
+    public OtherViewJson? Other { get; set; }
+    public Dictionary<string, OtherViewJson>? Servers { get; set; }
+    /// <summary>Minutes between syncs by itself; 0 is never.</summary>
+    public int Auto { get; set; }
+    /// <summary>Whether the last Restore can be undone.</summary>
+    public bool Undo { get; set; }
+    public ServerFileJson? ServerFile { get; set; }
+    /// <summary>Subscriptions whose settings sync brought with no account
+    /// here: sync carries no sign-in.</summary>
+    public List<string>? SignIn { get; set; }
+    /// <summary>What a restore brought in (POST /api/davsync/restore alone).</summary>
+    public List<string>? Brought { get; set; }
+}
+
+/// <summary>The other kind's server, kept for moving sync back
+/// (davsync.OtherView).</summary>
+public sealed class OtherViewJson
+{
+    public string Kind { get; set; } = "";
+    public string Url { get; set; } = "";
+    public string? User { get; set; }
+    public bool PasswordSet { get; set; }
+    public string? Endpoint { get; set; }
+    public string? Region { get; set; }
+    public bool PathStyle { get; set; }
+    public string? Branch { get; set; }
+}
+
+/// <summary>What a sync replaced when a part changed on both sides, or when
+/// this computer first joined a folder with a setup in it (davsync.Notice).</summary>
+public sealed class NoticeJson
+{
+    public DateTimeOffset At { get; set; }
+    public List<string>? Here { get; set; }
+    public List<string>? There { get; set; }
+    public bool Saved { get; set; }
+    public bool Restored { get; set; }
+}
+
+/// <summary>What the server held where the backup should be, when it isn't
+/// one (davsync.ServerFile).</summary>
+public sealed class ServerFileJson
+{
+    public string What { get; set; } = "";
+    public int Size { get; set; }
+    public string? Title { get; set; }
+    public string? Format { get; set; }
+    public string? Type { get; set; }
+    public string? Moved { get; set; }
+    public bool Replace { get; set; }
+}
+
+/// <summary>POST /api/backup/export's answer.</summary>
+public sealed class ExportAnswerJson
+{
+    public string Path { get; set; } = "";
+    public int Providers { get; set; }
+    public int Profiles { get; set; }
+    public int Agents { get; set; }
+    public bool Library { get; set; }
+}
+
+/// <summary>backup.Result as POST /api/backup/import answers it: its fields
+/// have no JSON tags, so they go out in their Go names (PascalCase).</summary>
+public sealed class ImportResultJson
+{
+    [System.Text.Json.Serialization.JsonPropertyName("Added")] public int Added { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("Replaced")] public int Replaced { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("NeedKey")] public List<string>? NeedKey { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("SignIn")] public List<string>? SignIn { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("Plugins")] public List<string>? Plugins { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("PluginErrors")] public Dictionary<string, string>? PluginErrors { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("Settings")] public bool Settings { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("Profiles")] public int Profiles { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("Agents")] public int Agents { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("Skipped")] public List<string>? Skipped { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("Library")] public bool Library { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("LibraryProblems")] public List<LibraryProblemJson>? LibraryProblems { get; set; }
+}
+
 // ---- /api/update (updateJSON, update.go) ----
 
 public sealed class UpdateJson
