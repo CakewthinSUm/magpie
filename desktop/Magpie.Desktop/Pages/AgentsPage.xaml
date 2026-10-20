@@ -5,75 +5,35 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Magpie.Desktop.Pages">
 
-    <!-- The agents on this computer, each with the model and the fields
-         magpie can set for it. One list, as the page has: a click on a
-         field's value opens the app's own menu (never a ComboBox: the
-         product rule is no native select, docs/code-standards.md). -->
-    <Grid Padding="24,16,24,24" RowSpacing="12">
+    <!-- The agents on this computer, drawn as magpie's own page draws them
+         (app.js's renderAgents): one line of lead, then one card holding a
+         compact row per agent — its name, what it runs on, the models it
+         starts on and the switch that connects it to magpie. A row opens in
+         place to its settings. The agents nothing is set on are folded
+         under the card, and the ones magpie knows but this computer lacks
+         are under it, with their install commands. Profiles close the page,
+         as the page's own chips do. -->
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
-            <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="Agents" />
-            <ProgressRing x:Name="Busy" IsActive="False" Width="18" Height="18"
-                          VerticalAlignment="Center" />
-            <TextBlock x:Name="Status" VerticalAlignment="Center"
-                       Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                       TextWrapping="Wrap" />
+        <!-- the page's title and the one line it is doing, as every page
+             drawn here has -->
+        <StackPanel Grid.Row="0" Padding="32,24,32,8" Spacing="4">
+            <TextBlock Text="Agents" Style="{ThemeResource TitleTextBlockStyle}" />
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <ProgressRing x:Name="Busy" IsActive="False" Width="16" Height="16" />
+                <TextBlock x:Name="Status" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                           TextWrapping="Wrap" />
+            </StackPanel>
         </StackPanel>
 
-        <TextBlock x:Name="Empty" Grid.Row="1" Visibility="Collapsed"
-                   Text="No agent is set up on this computer yet. Add a model source in Providers, then connect an agent here."
-                   TextWrapping="Wrap" Opacity="0.8" />
-
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-            <ItemsControl x:Name="List">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="local:AgentRow">
-                        <Border Margin="0,0,0,12" Padding="16,12" CornerRadius="8"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1">
-                            <StackPanel Spacing="10">
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Image Width="20" Height="20" Source="{x:Bind IconSource}" />
-                                    <TextBlock Text="{x:Bind Name}" FontSize="15" FontWeight="SemiBold"
-                                               VerticalAlignment="Center" />
-                                    <TextBlock Text="{x:Bind Line}" VerticalAlignment="Center"
-                                               Opacity="0.7" FontSize="12" TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
-                                <ItemsControl ItemsSource="{x:Bind Fields}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="local:FieldRow">
-                                            <Grid Margin="0,2" ColumnSpacing="12">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="160" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="{x:Bind Label}" Opacity="0.7"
-                                                           VerticalAlignment="Center" />
-                                                <Button Grid.Column="1" HorizontalAlignment="Left"
-                                                        Padding="10,4" Tag="{x:Bind}"
-                                                        Click="Field_Click"
-                                                        Content="{x:Bind Shown}" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="Body" Spacing="10" Padding="32,0,32,24" />
         </ScrollViewer>
-
-        <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="12">
-            <Button x:Name="Reload" Click="Reload_Click" Content="Read again" />
-            <TextBlock x:Name="Catalog" VerticalAlignment="Center" Opacity="0.6" FontSize="12" />
-        </StackPanel>
     </Grid>
 </Page>

@@ -10,85 +10,34 @@ beside itself (its own `MAGPIE_WEB_KEY` and loopback port) and draws the page
 from that API. The Go backend is untouched — nothing under `internal/` is
 modified for the app.
 
-Branch `claude/current-progress-8d519b`, on top of the merged `f0bd2cb7`:
+All nine pages and all eight Settings parts are XAML. The Agents and
+Providers pages are drawn as the web page draws them (compact rows, the
+connect switch, the CLI's update pill, the model-list dialog, profiles; the
+provider editor, the add sheet, the subscription sign-ins with the plugins').
+What is still the page's own is said in `desktop/README.md`'s "What this
+prototype doesn't do yet".
 
-```
-the icons every page's rows draw, read through the signed-in client
-60117384  a handoff note for the next session
-eb23abcf  the Settings item in the pane opens this app's Settings, not a webview
-1da8d138  the pages say the page's own words, in the language Settings picked
-7b00ddac  the window runs into the title bar over Mica; tray, links, login are the app's own
-459150fc  Settings' Sync and backup drawn in XAML
-254bf4cf  Settings' Allowances, Network, Models, Privacy and Observability drawn in XAML
-```
+## How the pages are drawn now
 
-All nine pages and all eight Settings parts are XAML now. Nothing under
-`desktop/` falls back to `WebHostPage` except a community plugin's own page,
-which is meant to stay a web page.
+The Agents page is `Pages/AgentsPage.xaml` plus three partials:
+`AgentsPage.xaml.cs` (the rows, the switch, the CLI, arranging), `Detail`
+(the opened row's fields, the tiers square, the picker menu), `Models` (the
+model-list dialog), `Profiles` (the chips, the manage dialog). It reads
+GET /api/state and draws again from every write's answer, which is the whole
+state.
 
-## The reported problem: missing icons — fixed
+The Providers page is `Pages/ProvidersPage.xaml` plus partials: the main
+file draws the rows, the banners and the arrange; `Editor` draws a provider's
+editor; `Add` draws the add sheet and a new provider's editor; `SignIn` runs
+a subscription's sign-in (built-in and plugin) and the account import.
 
-The user said "一堆地方缺图标" (lots of places are missing icons). It was
-reproduced and fixed. Three separate faults, all in `desktop/`:
+## Strings
 
-1. **The wrong route.** `IconOf` asked for `/api/icons/<name>.svg`, which
-   serves only the pictures magpie stores for a provider the user gave one
-   (`16 hex chars.ext`, `provider.IconFile`). A vendor's own mark is the
-   page's static `/icons/<name>.svg`, served beside `app.js` and *not*
-   behind `webGuard`. Asking `/api/icons/deepseek-color.svg` is a 404, so
-   the picture was empty even when the request went through.
-2. **No cookie on a stored picture.** A stored picture (`file:<name>`, and
-   a plugin's) *is* behind `webGuard`, and an `Image`/`SvgImageSource`
-   loading a `Uri` carries no cookie — 401. (The `?k=` Usage used to put in
-   the address worked, but only because `webGuard` trades it for a cookie.)
-3. **`currentColor` in an SVG.** 65 of the 171 marks are mono and paint
-   with `fill="currentColor"`, which the page draws as a CSS mask tinted
-   with the text colour. `SvgImageSource` has no page to take a colour
-   from, so those paths had no paint at all.
-
-What it is now (`Pages/PageBase.cs`):
-
-- `PageKitUI.IconAddress` is the one place an icon name becomes an address:
-  a vendor's is `icons/<name>.svg` (`.png` for `PageKitUI.PngIcons`), a
-  stored one is `api/icons/<file>`, a plugin's own is its `https:`/`data:`
-  URL.
-- `PageKitUI.LoadIconsAsync(icons, redraw)` reads them through the signed-in
-  `MagpieClient.GetBytesAsync`, decodes once into a cache shared by every
-  page, then calls `redraw` — so a page draws at once and its logos appear a
-  pass later. `IconCached` is what a draw uses; a failed read is kept as "no
-  picture" and never retried on a redraw.
-- `InkSvg` writes the theme's ink in for `currentColor`, and `App.UseTheme`
-  drops the cache and redraws, so a theme change re-reads the marks.
-
-Every page calls `LoadIconsAsync` from its own `LoadAsync`; grep for it to
-find the ones that don't. Plugins asks the market first, because an installed
-plugin with no picture of its own takes the market's.
-
-**The fallback matters.** A name magpie has no file for draws the page's
-plain mark, as `app.js`'s `icon` does: `"generic"` is that mark, and a mark
-whose picture fails to load replaces itself with it. It is a path the page
-draws (`GenericMark`, from `app.js`'s `svg(...)`), not a file — there is no
-`icons/generic.svg`, which is why asking for one was a 404. `LoadIconsAsync`
-reads it alongside the rest, so it is there for the draw that shows it.
-Without it `intern-ai.org.cn` and every custom provider drew nothing.
-
-A row with no icon name at all (`icon` null or empty) still draws nothing:
-the page gives it a blank slot.
-
-`MainWindow.xaml` uses `FontIcon` glyphs in the pane, which is correct.
-
-## What is left, in the order the user cares about
-
-1. **The release shape**: still one `magpie-windows-<arch>.exe`; shipping two
-   programs (the app + `magpie.exe`) is its own change — magpie-releases,
-   self-update, the site's downloads.
-2. **The panel's glide** from the Wails app (`internal/gui/app.go`'s
-   `glidePanel`); the panel has acrylic now but no motion.
-3. **`magpie://import`**: the link registers and opens Providers, and says it
-   cannot apply yet. The Providers page has no import drawn.
-4. **Backend-generated strings stay English**: what `settingsJSON` and the
-   usage API return (a window's name, a reset time) is magpie's own text and
-   is not in `i18n.js`.
+`desktop/Magpie.Desktop/Strings.cs` is generated (3732 keys × zh, zh-TW, ja,
+de) by `node desktop/gen-strings.mjs`, from `internal/gui/assets/i18n.js`
+plus `desktop/strings-extra.json`. Rerun it after changing a word a page
+says. `L.T` looks a word up by the English the page writes; a word with no
+key stays English.
 
 ## How this app is verified
 
@@ -100,7 +49,8 @@ go build -tags nogui -o desktop/Magpie.Desktop/bin/x64/Debug/net8.0-windows10.0.
 ```
 
 Run it on a view: `Magpie.Desktop.exe "settings&tab=sync"`. It starts its own
-backend; a running `magpie.exe` of the user's is not touched.
+backend; a running `magpie.exe` of the user's is not touched. The app's own
+config dir is `~/.config/magpie-desktop`.
 
 Screenshot this checkout's window:
 
@@ -108,16 +58,13 @@ Screenshot this checkout's window:
 pwsh desktop/shot.ps1 -Out desktop/shot.png
 ```
 
-Drive the real UI with UI Automation (this is how every claim in the commit
-bodies was checked) — `Add-Type -AssemblyName UIAutomationClient,
-UIAutomationTypes`, then `AutomationElement::FromHandle($p.MainWindowHandle)`,
-`FindAll` by `NameProperty` / `ControlTypeProperty`, and
-`SelectionItemPattern` / `InvokePattern` to act. PasswordBox has no
-`ValuePattern`; type into it another way.
-
-Read what a save actually wrote: `~/.config/magpie/settings.json` (the app
-runs `magpie web` with no `--config-dir`, so it uses the same folder an
-installed magpie does — worth knowing before a test changes a real setting).
+Drive the real UI with UI Automation — `Add-Type -AssemblyName
+UIAutomationClient,UIAutomationTypes`, then
+`AutomationElement::FromHandle($p.MainWindowHandle)`, `FindAll` by
+`NameProperty` / `ControlTypeProperty`, and `SelectionItemPattern` /
+`InvokePattern` / `TogglePattern` to act. ToggleSwitch reads its state off
+TogglePattern, not off the screen. PasswordBox has no `ValuePattern`; type
+into it another way.
 
 ## Traps this session hit
 
@@ -133,25 +80,18 @@ installed magpie does — worth knowing before a test changes a real setting).
   root's `RequestedTheme` (`ElementTheme`), which changes at run time; read
   the saved theme before the window is made, and set the root again after.
 - **A `RequestedTheme` set after `L.Use` redraws the pane in English**: set
-  the language first, then the theme. That was a regression caught only by
-  walking the pane after a theme change.
+  the language first, then the theme.
 - **UI Automation names are the words on screen**, so after a language or
   theme change the nav items are Chinese. Find them by name as drawn, and
   re-fetch the window element after a redraw — a stale one goes null.
-- `L.Walk` translates a drawn page by walking the visual tree; a flyout's
-  items are not in it, so `PageKitUI.Menu` and `Choices` translate where they
-  build. A new control with a `string` label needs one of the two.
-- `PageKit.RunAsync` is the one place a page's text is walked for translation
-  after a draw — a page that draws outside it will not be translated.
-- `SaveAsync` sends the whole settings snapshot with one field overlaid,
-  because `POST /api/settings` carries forward only what other pages own.
-  A new bulk-saved field must be added to `Snapshot()` or a save resets it.
+- **A ToggleSwitch fires Toggled when the draw sets IsOn.** Every page owns a
+  `_drawing` guard set around the draw; a switch's handler no-ops under it.
+- **POST /api/open is a no-op under `magpie web`** (webHost.OpenURL does
+  nothing): a link the app opens goes through `PageKitUI.OpenUrl`, the
+  Windows shell.
+- **A provider save that omits a field keeps it for an existing provider,
+  and drops it for a custom or new one.** The editor therefore sends only
+  what changed for an existing provider, and carries the whole form for a
+  new one.
 - Writing HKCU's Run key (Open at login) is refused by this session's
   permission rules, so `Autostart.Set`'s write path is still unexercised.
-
-## Strings
-
-`desktop/Magpie.Desktop/Strings.cs` is generated (1.5 MB, 3732 keys × zh,
-zh-TW, ja, de) by `node desktop/gen-strings.mjs`, from
-`internal/gui/assets/i18n.js` plus `desktop/strings-extra.json`. Rerun it
-after changing a word a page says.

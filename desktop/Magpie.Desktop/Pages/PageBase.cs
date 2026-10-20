@@ -166,6 +166,32 @@ public static class L
             case InfoBar { Title: { Length: > 0 } title } bar:
                 bar.Title = T(title);
                 break;
+            // a box's hint is a word the page says too, and an editor opened
+            // after a language change keeps the one it was made with
+            case TextBox { PlaceholderText: { Length: > 0 } hint } box:
+                box.PlaceholderText = T(hint);
+                break;
+            case PasswordBox { PlaceholderText: { Length: > 0 } hint } box:
+                box.PlaceholderText = T(hint);
+                break;
+            case AutoSuggestBox { PlaceholderText: { Length: > 0 } hint } box:
+                box.PlaceholderText = T(hint);
+                break;
+            case HyperlinkButton { Content: string link } button:
+                button.Content = T(link);
+                break;
+            // a switch's own header is drawn above it, outside the tree a walk
+            // of the children reaches
+            case ToggleSwitch { Header: string header } toggle:
+                toggle.Header = T(header);
+                break;
+            case Expander { Header: TextBlock { Text: { Length: > 0 } head } } expander:
+                expander.Header = new TextBlock
+                {
+                    Text = T(head),
+                    FontSize = ((TextBlock)expander.Header).FontSize,
+                };
+                break;
         }
         var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(root);
         for (var i = 0; i < count; i++)
@@ -670,8 +696,23 @@ public static class PageKitUI
         return row;
     }
 
-    /// <summary>A link-style button that opens a URL through the backend's
-    /// POST /api/open, as the web page's "Get a key ↗" does.</summary>
+    /// <summary>
+    /// Opens a URL in the user's browser. The backend's POST /api/open is a
+    /// no-op under `magpie web` (webHost.OpenURL, the page opens its own
+    /// links), so the app opens them itself: the Windows shell, which is what
+    /// a browser tab's link does.
+    /// </summary>
+    public static async Task OpenUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return;
+        if (!await Windows.System.Launcher.LaunchUriAsync(new Uri(url)))
+        {
+            throw new InvalidOperationException("Windows has no app to open " + url);
+        }
+    }
+
+    /// <summary>A link-style button that opens a URL, as the web page's
+    /// "Get a key ↗" does.</summary>
     public static Button LinkButton(string label, string url)
     {
         var button = new Button
@@ -682,7 +723,7 @@ public static class PageKitUI
         };
         button.Click += async (_, _) =>
         {
-            try { await App.CurrentApp.Client.PostAsync("open", new { url }); }
+            try { await OpenUrl(url); }
             catch (Exception) { /* opening failed; the row still works */ }
         };
         return button;
