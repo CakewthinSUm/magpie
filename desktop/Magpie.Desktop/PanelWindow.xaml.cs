@@ -1,6 +1,7 @@
 using Magpie.Desktop.Backend;
 using Magpie.Desktop.Tray;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 
@@ -31,6 +32,10 @@ public sealed partial class PanelWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(Drag);
         AppWindow.Title = "magpie";
+        // acrylic, as Windows 11 gives a flyout: the desktop blurred behind
+        // the panel, not a solid card over it
+        try { SystemBackdrop = new DesktopAcrylicBackdrop(); }
+        catch (Exception e) { App.Log("no acrylic backdrop: " + e.Message); }
         // the page sizes the panel by CSS pixels (/api/window/fit); the
         // window is in the monitor's, so its scale is kept here
         _scale = GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96.0;

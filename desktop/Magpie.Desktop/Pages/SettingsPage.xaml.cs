@@ -58,6 +58,10 @@ public sealed partial class SettingsPage : Page, IRefreshable
         await PageKit.RunAsync(async () =>
         {
             _settings = await App.CurrentApp.Client.GetAsync<SettingsFullJson>("settings") ?? new SettingsFullJson();
+            // open at login is this app's own Run value, not magpie web's
+            // (Autostart), so the page is told what the system has for this
+            // exe rather than what magpie.exe's record says
+            _settings.Login = Autostart.Enabled();
             // Sync and backup's own view is a second endpoint, read with the
             // page so the tab is drawn from what is on disk now
             if (_part == "sync") _sync = await App.CurrentApp.Client.GetAsync<DavSyncViewJson>("davsync") ?? _sync;
@@ -510,15 +514,22 @@ public sealed partial class SettingsPage : Page, IRefreshable
         _busy = false;
     }
 
-    /// <summary>Open at login is the system's record, not a setting, so it has
-    /// its own route.</summary>
+    /// <summary>
+    /// Open at login is the system's record, not a setting: the app writes
+    /// the Run value itself (Autostart), pointing at this exe, rather than
+    /// asking magpie web, whose own record starts magpie.exe — the backend
+    /// beside this app, which has no window to open at login. The page's
+    /// value is then read back from the registry, so it says what the system
+    /// does.
+    /// </summary>
     private async Task SaveLoginAsync(bool on)
     {
         if (_busy) return;
         await PageKit.RunAsync(async () =>
         {
             _busy = true;
-            _settings = await App.CurrentApp.Client.PostAsync<SettingsFullJson>("settings/login", new { on }) ?? _settings;
+            Autostart.Set(on);
+            _settings!.Login = Autostart.Enabled();
             Draw();
         }, Status, Busy);
         _busy = false;
