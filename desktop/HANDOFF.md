@@ -112,7 +112,7 @@ Gaps are in the order a user meets them. Line numbers are app.js's.
 22. **`AgentsPage.InsideControl`** is shared by both pages' row-tap
     handlers; adding a new control type to it changes both pages.
 
-## The traps this session hit (earlier ones are in the older handoff)
+## The traps this session hit, and the ones before it
 
 - **A ToggleSwitch fires Toggled when the draw sets IsOn.** Every page owns
   a `_drawing` (or `_editorDrawing`) guard set around the draw; a switch's
@@ -145,6 +145,24 @@ Gaps are in the order a user meets them. Line numbers are app.js's.
 - **UnhandledException surfaces as a dialog, then the window is gone** —
   after any UIA-driven click that ends in a COMException, check the process
   before reading the screen again.
+- **Click the pane, not the command line.** A view passed as an argument skips
+  `Nav_SelectionChanged`. That is how `Tag="Settings"` (capital S) went
+  unnoticed and the gear drew a WebView2 page. Test the path the user takes.
+- **Two icon routes, and only one is guarded.** `/icons/<name>` is the page's
+  own static file and is served to anyone; `/api/icons/<file>` is a stored
+  picture behind `webGuard`. Checking one and assuming the other is how the
+  first fix looked right and drew nothing.
+- **`Application.RequestedTheme` throws once the app has started**
+  (`COMException`, and it takes the window down). The look is the window
+  root's `RequestedTheme` (`ElementTheme`), which changes at run time; read
+  the saved theme before the window is made, and set the root again after.
+- **A `RequestedTheme` set after `L.Use` redraws the pane in English**: set
+  the language first, then the theme.
+- **UI Automation names are the words on screen**, so after a language or
+  theme change the nav items are Chinese. Find them by name as drawn, and
+  re-fetch the window element after a redraw — a stale one goes null.
+- Writing HKCU's Run key (Open at login) is refused by this session's
+  permission rules, so `Autostart.Set`'s write path is still unexercised.
 
 ## How this app is verified
 
