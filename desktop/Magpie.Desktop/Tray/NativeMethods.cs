@@ -38,6 +38,16 @@ internal static class NativeMethods
     internal const int NIF_MESSAGE = 0x00000001;
     internal const int NIF_ICON = 0x00000002;
     internal const int NIF_TIP = 0x00000004;
+    internal const int NIF_INFO = 0x00000010; // a balloon, or a toast on Windows 10/11
+    internal const int NIIF_NONE = 0x00000000;
+    internal const int NIIF_INFO = 0x00000001;
+    internal const int NIIF_WARNING = 0x00000002;
+    internal const int NIIF_ERROR = 0x00000003;
+    /// <summary>The balloon's icon is the app's own, from hBalloonIcon.</summary>
+    internal const int NIIF_USER = 0x00000004;
+    /// <summary>The balloon does not go to the Action Center when it is
+    /// missed: magpie's alerts are for the moment, not a list to read later.</summary>
+    internal const int NIIF_NOSOUND = 0x00000010;
 
     // what the icon's callback window hears
     internal const int WM_APP = 0x8000;

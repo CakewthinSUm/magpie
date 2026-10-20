@@ -536,6 +536,10 @@ public sealed class ModelRefJson
     public string Provider { get; set; } = "";
     public string ProviderName { get; set; } = "";
     public string? Icon { get; set; }
+    /// <summary>An image model whose vendor picks the model itself,
+    /// whichever is named (a ChatGPT account's), which Settings' Images
+    /// row says (groups.go modelRef.VendorPicks).</summary>
+    public bool VendorPicks { get; set; }
 }
 
 // ---- /api/gateway/trace (traceJSON, routeJSON) ----
@@ -1130,6 +1134,7 @@ public sealed class SettingsFullJson
     public string ProxyNow { get; set; } = "";
     public string ProxySource { get; set; } = "";
     public List<string>? LanUrls { get; set; }
+    public bool LanContainer { get; set; }
     public string? GithubTokenMask { get; set; }
     public string? GithubTokenFrom { get; set; }
     public string? Notice { get; set; }
@@ -1161,6 +1166,396 @@ public sealed class SettingsFullJson
     public bool NoAccountsEnv { get; set; }
     /// <summary>Whether agents' sign-ins are read and served as subscriptions.</summary>
     public bool NoAccountDiscovery { get; set; }
+
+    // ---- General's other choices, sent whole by the snapshot save so a
+    // desktop save never resets a value the web page set ----
+
+    public bool Dock { get; set; }
+    public bool DockWindow { get; set; }
+    public bool Lightweight { get; set; }
+    public bool KeepAwake { get; set; }
+    public bool KeepAwakeDisplay { get; set; }
+    public bool NoWSLAgents { get; set; }
+    public string SessionTerminal { get; set; } = "";
+
+    // ---- Allowances / usage ----
+
+    public bool QuotaLeft { get; set; }
+    public string QuotaReads { get; set; } = "";
+    public string Currency { get; set; } = "usd";
+    public bool ChineseUnits { get; set; }
+    public bool PlainNames { get; set; }
+    public bool PlainOwnNames { get; set; }
+    public bool CodexAgentsV1 { get; set; }
+    public bool FullContext { get; set; }
+    public int CompactAt { get; set; }
+    public bool CodexAsyncCompact { get; set; }
+    public int CodexAsyncCompactPercent { get; set; }
+    public List<string>? TrayUsages { get; set; }
+    public string TrayUsage { get; set; } = "";
+    public int TrayUsageEvery { get; set; }
+    public bool TrayNoLogos { get; set; }
+    public bool TrayNoBird { get; set; }
+    public bool TrayPace { get; set; }
+    public bool TrayNoCost { get; set; }
+    public int UsageAlert { get; set; }
+    public double BalanceAlert { get; set; }
+    public int ResetReminder { get; set; }
+    public int TurnDoneAlert { get; set; }
+    public string? NotifyProblem { get; set; }
+    public string CodexWarmup { get; set; } = "";
+    public string ClaudeWarmup { get; set; } = "";
+    public string CodexWarmAt { get; set; } = "";
+    public string ClaudeWarmAt { get; set; } = "";
+    public List<string>? CodexWarmAts { get; set; }
+    public List<string>? ClaudeWarmAts { get; set; }
+    public Dictionary<string, string>? CodexWarmAtOf { get; set; }
+    public List<string>? CodexUsers { get; set; }
+    public List<string>? CodexAutoReset { get; set; }
+    public Dictionary<string, string>? CodexAutoResetOnly { get; set; }
+    public List<string>? CodexNoCredits { get; set; }
+    public DateTimeOffset? CodexWarmed { get; set; }
+    public DateTimeOffset? ClaudeWarmed { get; set; }
+    public bool WorkBuddy { get; set; }
+    public bool Trae { get; set; }
+    public bool MiniMax { get; set; }
+    public bool Qoder { get; set; }
+    public bool WorkBuddyCheckin { get; set; }
+    public bool TraeCheckin { get; set; }
+    public bool MiniMaxCheckin { get; set; }
+    public bool QoderCheckin { get; set; }
+    public List<WorkBuddyCheckinJson>? WorkBuddyCheckins { get; set; }
+    public List<WorkBuddyCheckinJson>? TraeCheckins { get; set; }
+    public List<WorkBuddyCheckinJson>? MiniMaxCheckins { get; set; }
+    public List<WorkBuddyCheckinJson>? QoderCheckins { get; set; }
+    public List<CheckinAccountJson>? CheckinAccounts { get; set; }
+    public List<PluginCheckinJson>? CheckinPlugins { get; set; }
+    public string CodexTitles { get; set; } = "";
+    public string CodexDescriptions { get; set; } = "";
+    public string CodexPredictions { get; set; } = "";
+    public string CodexAutoReview { get; set; } = "";
+    public List<ModelRefJson> TitleModels { get; set; } = [];
+    public FxJson Fx { get; set; } = new();
+
+    // ---- Network and sharing ----
+
+    public string Proxy { get; set; } = "";
+    public int Port { get; set; }
+    public string? AddrEnv { get; set; }
+    public bool BareModelIDs { get; set; }
+    public List<string>? AllowIPs { get; set; }
+    public string? AllowIPsEnv { get; set; }
+    public List<string>? AllowIPsFromEnv { get; set; }
+    public bool OnNetwork { get; set; }
+    public List<string>? CorsOrigins { get; set; }
+
+    // ---- Models ----
+
+    public string Vision { get; set; } = "";
+    public string VisionEffort { get; set; } = "";
+    public string? VisionAuto { get; set; }
+    public List<ModelRefJson> VisionModels { get; set; } = [];
+    public string? VisionMissing { get; set; }
+    public List<string>? VisionEfforts { get; set; }
+    public string? VisionEffortNow { get; set; }
+    public string ImageGen { get; set; } = "";
+    public string? ImageGenAuto { get; set; }
+    public string? ImageGenMissing { get; set; }
+    public string? ImageGenShown { get; set; }
+    public List<ModelRefJson> ImageGenModels { get; set; } = [];
+    public string Searcher { get; set; } = "";
+    public string SearcherEffort { get; set; } = "";
+    public string? SearchAuto { get; set; }
+    public string? SearchUnused { get; set; }
+    public List<string>? SearchEfforts { get; set; }
+    public string? SearchEffortNow { get; set; }
+    public List<SearchChoiceJson> SearchChoices { get; set; } = [];
+    public string? SearchProvider { get; set; }
+    public List<string>? SearchRelays { get; set; }
+    public SearchFailedJson? SearchFailed { get; set; }
+    public List<string>? SearchLeftOut { get; set; }
+    public List<SearchApiJson> SearchAPIs { get; set; } = [];
+    public List<SearchVendorJson> SearchVendors { get; set; } = [];
+    public string SearchFirst { get; set; } = "";
+    public bool MemberModel { get; set; }
+    public bool NoLoopGuard { get; set; }
+    public int? RefusalRetries { get; set; }
+    public bool ClaudeLeanPrompt { get; set; }
+    public List<string>? DisabledModels { get; set; }
+    public Dictionary<string, List<string>>? DisabledHits { get; set; }
+
+    // ---- Privacy ----
+
+    public bool Redact { get; set; }
+    public bool RedactPersonal { get; set; }
+    public Dictionary<string, bool>? RedactKinds { get; set; }
+    public List<string>? RedactWords { get; set; }
+    public List<RedactRuleJson>? RedactRules { get; set; }
+    public bool NoStats { get; set; }
+    public bool NoUsageStats { get; set; }
+
+    // ---- Observability ----
+
+    public OTelJson Otel { get; set; } = new();
+    public bool OtelEnv { get; set; }
+}
+
+/// <summary>A USD→CNY rate as the Settings page shows it (api.go fxJSON):
+/// the number a cost is multiplied by, when it was last learned, and
+/// whether that is stale.</summary>
+public sealed class FxJson
+{
+    public double Rate { get; set; }
+    public DateTimeOffset? At { get; set; }
+    public bool Stale { get; set; }
+}
+
+/// <summary>The OTLP/HTTP metadata export (settings.OTel): its endpoint
+/// (the base URL), the headers sent with every signal, and what goes out.</summary>
+public sealed class OTelJson
+{
+    public bool Enabled { get; set; }
+    public string Endpoint { get; set; } = "";
+    public Dictionary<string, string> Headers { get; set; } = [];
+    public bool Metrics { get; set; }
+    public bool Sessions { get; set; }
+    public bool Bodies { get; set; }
+    public bool BodiesWhole { get; set; }
+}
+
+/// <summary>A masking rule the user added for a secret magpie's own rules
+/// don't know (redact.Rule): its placeholder, and the prefix its values
+/// start with or a pattern for them.</summary>
+public sealed class RedactRuleJson
+{
+    public string Kind { get; set; } = "";
+    public string Prefix { get; set; } = "";
+    public string Regex { get; set; } = "";
+}
+
+/// <summary>A web search API as the Settings page shows it (api.go searchAPIJSON).</summary>
+public sealed class SearchApiJson
+{
+    public string Vendor { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Key { get; set; }
+    public string? Url { get; set; }
+    public bool Ready { get; set; }
+    public int Keys { get; set; }
+    public string? Pick { get; set; }
+    public bool Quota { get; set; }
+    public bool Off { get; set; }
+}
+
+/// <summary>A vendor whose search API can be added (api.go searchVendorJSON).</summary>
+public sealed class SearchVendorJson
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? KeysUrl { get; set; }
+    public bool NeedUrl { get; set; }
+    public bool KeyOptional { get; set; }
+    public string? Base { get; set; }
+}
+
+/// <summary>A provider that can search for a model that can't (api.go searchChoiceJSON).</summary>
+public sealed class SearchChoiceJson
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Icon { get; set; }
+    public string Small { get; set; } = "";
+    public string? SmallName { get; set; }
+    public List<ModelRefJson> Models { get; set; } = [];
+    public bool Service { get; set; }
+    public bool Own { get; set; }
+}
+
+/// <summary>The last search the named searcher didn't make (api.go searchFailedJSON).</summary>
+public sealed class SearchFailedJson
+{
+    public string Searcher { get; set; } = "";
+    public string? Why { get; set; }
+    public bool NothingFound { get; set; }
+    public bool NotSearched { get; set; }
+    public DateTimeOffset At { get; set; }
+}
+
+/// <summary>One account a vendor's daily check-in reaches (provider.CheckinAccount).</summary>
+public sealed class CheckinAccountJson
+{
+    public string Key { get; set; } = "";
+    public string By { get; set; } = "";
+    public string User { get; set; } = "";
+    public bool On { get; set; }
+}
+
+/// <summary>A plugin's provider that checks in (provider.PluginCheckin).</summary>
+public sealed class PluginCheckinJson
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public bool On { get; set; }
+    public List<WorkBuddyCheckinJson>? Checkins { get; set; }
+}
+
+/// <summary>One account's last daily check-in (provider.WorkBuddyCheckin).</summary>
+public sealed class WorkBuddyCheckinJson
+{
+    public string? User { get; set; }
+    public string Day { get; set; } = "";
+    public DateTimeOffset At { get; set; }
+    public string Outcome { get; set; } = "";
+    public double Credit { get; set; }
+    public int Streak { get; set; }
+    public string? Msg { get; set; }
+    public DateTimeOffset Until { get; set; }
+    public bool Offline { get; set; }
+    public int Tries { get; set; }
+    public string? By { get; set; }
+    public string? Vendor { get; set; }
+}
+
+/// <summary>What POST /api/proxy/check found (proxycheck.go proxyCheck):
+/// the proxy in force, and the request through it and the one without.</summary>
+public sealed class ProxyCheckJson
+{
+    public string? Proxy { get; set; }
+    public string Source { get; set; } = "";
+    public ProxyLegJson? Through { get; set; }
+    public ProxyLegJson Direct { get; set; } = new();
+}
+
+/// <summary>One leg of a proxy check: the address it left from, and whether
+/// the connection went to the proxy (proxycheck.go proxyLeg).</summary>
+public sealed class ProxyLegJson
+{
+    public string? Ip { get; set; }
+    public string? Loc { get; set; }
+    public long Ms { get; set; }
+    public string? Error { get; set; }
+    public bool Proxied { get; set; }
+}
+
+/// <summary>POST /api/settings/port's answer (api.go:2036): the settings and
+/// what moving the gateway port did.</summary>
+public sealed class PortAnswerJson
+{
+    public SettingsFullJson Settings { get; set; } = new();
+    public PortResultJson Port { get; set; } = new();
+}
+
+/// <summary>What changing the gateway's port did (port.go).</summary>
+public sealed class PortResultJson
+{
+    public int Port { get; set; }
+    public List<string>? Moved { get; set; }
+    public string? Error { get; set; }
+}
+
+// ---- /api/davsync (davsync.View, davsync.go) ----
+
+/// <summary>Sync's setup and how the last sync went (davsync.View), as the
+/// Settings page's Sync and backup part shows it.</summary>
+public sealed class DavSyncViewJson
+{
+    public bool On { get; set; }
+    public string? Url { get; set; }
+    public string? User { get; set; }
+    public bool PasswordSet { get; set; }
+    public bool PassphraseSet { get; set; }
+    public bool Keys { get; set; }
+    public bool Agents { get; set; }
+    /// <summary>"webdav", "s3" or "github", when on.</summary>
+    public string? Kind { get; set; }
+    public string? Endpoint { get; set; }
+    public string? Region { get; set; }
+    public bool PathStyle { get; set; }
+    public string? Branch { get; set; }
+    public bool Library { get; set; }
+    public bool Usage { get; set; }
+    public string? UsageError { get; set; }
+    public DateTimeOffset Last { get; set; }
+    public string? Error { get; set; }
+    public NoticeJson? Notice { get; set; }
+    public OtherViewJson? Other { get; set; }
+    public Dictionary<string, OtherViewJson>? Servers { get; set; }
+    /// <summary>Minutes between syncs by itself; 0 is never.</summary>
+    public int Auto { get; set; }
+    /// <summary>Whether the last Restore can be undone.</summary>
+    public bool Undo { get; set; }
+    public ServerFileJson? ServerFile { get; set; }
+    /// <summary>Subscriptions whose settings sync brought with no account
+    /// here: sync carries no sign-in.</summary>
+    public List<string>? SignIn { get; set; }
+    /// <summary>What a restore brought in (POST /api/davsync/restore alone).</summary>
+    public List<string>? Brought { get; set; }
+}
+
+/// <summary>The other kind's server, kept for moving sync back
+/// (davsync.OtherView).</summary>
+public sealed class OtherViewJson
+{
+    public string Kind { get; set; } = "";
+    public string Url { get; set; } = "";
+    public string? User { get; set; }
+    public bool PasswordSet { get; set; }
+    public string? Endpoint { get; set; }
+    public string? Region { get; set; }
+    public bool PathStyle { get; set; }
+    public string? Branch { get; set; }
+}
+
+/// <summary>What a sync replaced when a part changed on both sides, or when
+/// this computer first joined a folder with a setup in it (davsync.Notice).</summary>
+public sealed class NoticeJson
+{
+    public DateTimeOffset At { get; set; }
+    public List<string>? Here { get; set; }
+    public List<string>? There { get; set; }
+    public bool Saved { get; set; }
+    public bool Restored { get; set; }
+}
+
+/// <summary>What the server held where the backup should be, when it isn't
+/// one (davsync.ServerFile).</summary>
+public sealed class ServerFileJson
+{
+    public string What { get; set; } = "";
+    public int Size { get; set; }
+    public string? Title { get; set; }
+    public string? Format { get; set; }
+    public string? Type { get; set; }
+    public string? Moved { get; set; }
+    public bool Replace { get; set; }
+}
+
+/// <summary>POST /api/backup/export's answer.</summary>
+public sealed class ExportAnswerJson
+{
+    public string Path { get; set; } = "";
+    public int Providers { get; set; }
+    public int Profiles { get; set; }
+    public int Agents { get; set; }
+    public bool Library { get; set; }
+}
+
+/// <summary>backup.Result as POST /api/backup/import answers it: its fields
+/// have no JSON tags, so they go out in their Go names (PascalCase).</summary>
+public sealed class ImportResultJson
+{
+    [System.Text.Json.Serialization.JsonPropertyName("Added")] public int Added { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("Replaced")] public int Replaced { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("NeedKey")] public List<string>? NeedKey { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("SignIn")] public List<string>? SignIn { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("Plugins")] public List<string>? Plugins { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("PluginErrors")] public Dictionary<string, string>? PluginErrors { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("Settings")] public bool Settings { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("Profiles")] public int Profiles { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("Agents")] public int Agents { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("Skipped")] public List<string>? Skipped { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("Library")] public bool Library { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("LibraryProblems")] public List<LibraryProblemJson>? LibraryProblems { get; set; }
 }
 
 // ---- /api/update (updateJSON, update.go) ----

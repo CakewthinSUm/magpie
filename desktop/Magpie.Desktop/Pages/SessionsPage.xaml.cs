@@ -64,9 +64,9 @@ public sealed partial class SessionsPage : Page, IRefreshable
             Draw();
             // a row's icon is a picture of its own, read through the signed-in
             // client and drawn on the next pass
-            await LoadIconsAsync(_data.Sessions.Select(s => s.Icon)
+            await PageKitUI.LoadIconsAsync(_data.Sessions.Select(s => s.Icon)
                 .Concat(_data.Trash.Select(t => t.Icon))
-                .Concat(_data.Agents.Select(a => a.Icon)));
+                .Concat(_data.Agents.Select(a => a.Icon)), Draw);
         }, Status, Busy);
     }
 
@@ -344,65 +344,10 @@ public sealed partial class SessionsPage : Page, IRefreshable
     private string AgentName(string id) =>
         _data.Agents.FirstOrDefault(a => a.Agent == id)?.Name is { Length: > 0 } name ? name : id;
 
-    /// <summary>An agent's own logo, from the icons the page's rows use. The
-    /// bytes are read through the signed-in client (an image control loading
-    /// the address has no cookie and is turned away), and kept by name, so
-    /// a list of a hundred rows reads each icon once.</summary>
-    private static readonly Dictionary<string, ImageSource?> _icons = [];
-
-    /// <summary>An icon already read, for a draw that can't wait on the
-    /// network: none the first time, and the draw after it has it.</summary>
-    private static ImageSource? IconCached(string icon) =>
-        icon.Length > 0 && _icons.TryGetValue(icon, out var found) ? found : null;
-
-    /// <summary>Reads the icons a draw needs that aren't kept yet, then draws
-    /// again. A failed read is kept as "no icon", never retried on a redraw.</summary>
-    private async Task LoadIconsAsync(IEnumerable<string> icons)
-    {
-        var missing = icons.Where(i => i.Length > 0 && !_icons.ContainsKey(i)).Distinct().ToList();
-        if (missing.Count == 0) return;
-        foreach (var icon in missing)
-        {
-            try
-            {
-                // the page's rows draw a "-color" or a listed app's icon as a
-                // picture, and every other as a mask; a mask's colours are
-                // not here, so its .svg is drawn as it is
-                string[] png = ["crush", "zcode", "alma", "hanako", "cindy", "lody", "typesafe", "atomcode", "snow", "mlx-serve", "mothx"];
-                var name = icon.EndsWith(".svg") || icon.EndsWith(".png") ? icon : icon + (png.Contains(icon) ? ".png" : ".svg");
-                var bytes = await App.CurrentApp.Client.GetBytesAsync("icons/" + Uri.EscapeDataString(name));
-                _icons[icon] = bytes is null ? null : await DecodeAsync(bytes, name);
-            }
-            catch (Exception)
-            {
-                _icons[icon] = null;
-            }
-        }
-        Draw();
-    }
-
-    /// <summary>The bytes as an image: WinUI's BitmapImage reads no SVG, so
-    /// the page's marks go through an SvgImageSource and its pictures
-    /// through a bitmap.</summary>
-    private static async Task<ImageSource?> DecodeAsync(byte[] bytes, string name)
-    {
-        var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
-        using (var w = new Windows.Storage.Streams.DataWriter(stream.GetOutputStreamAt(0)))
-        {
-            w.WriteBytes(bytes);
-            await w.StoreAsync();
-        }
-        stream.Seek(0);
-        if (name.EndsWith(".png"))
-        {
-            var bitmap = new BitmapImage();
-            await bitmap.SetSourceAsync(stream);
-            return bitmap;
-        }
-        var svg = new SvgImageSource();
-        await svg.SetSourceAsync(stream);
-        return svg;
-    }
+    /// <summary>An agent's own logo, as every page's rows share it: the
+    /// picture read already, or none until the read lands (LoadAsync draws
+    /// the page again when it has).</summary>
+    private static ImageSource? IconCached(string icon) => PageKitUI.IconCached(icon);
 
     /// <summary>The window's width decides the layout: the list and the
     /// picked session side by side when there is room for both, one above

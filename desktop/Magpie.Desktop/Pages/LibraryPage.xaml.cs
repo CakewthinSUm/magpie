@@ -2,7 +2,6 @@ using Magpie.Desktop.Backend;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace Magpie.Desktop.Pages;
@@ -44,6 +43,9 @@ public sealed partial class LibraryPage : Page, IRefreshable
             // page shows it in one go, as this window has no glance first
             _data = await App.CurrentApp.Client.GetAsync<LibraryJson>("library") ?? new LibraryJson();
             Draw();
+            // each agent's own logo, read through the signed-in client and
+            // drawn on the pass after it has it
+            await PageKitUI.LoadIconsAsync(_data.Agents.Select(a => a.Icon), Draw);
         }, Status, Busy);
     }
 
@@ -362,15 +364,10 @@ public sealed partial class LibraryPage : Page, IRefreshable
         return path;
     }
 
-    /// <summary>The agent's own logo, from the page's icons (/api/icons
-    /// serves them); none when magpie has none.</summary>
-    private static ImageSource? IconOf(string icon)
-    {
-        if (string.IsNullOrEmpty(icon)) return null;
-        var app = App.CurrentApp;
-        if (app.Client.BaseUrl.Length == 0) return null;
-        return new BitmapImage(new Uri(app.Client.BaseUrl + "icons/" + Uri.EscapeDataString(icon) + ".svg"));
-    }
+    /// <summary>The agent's own logo, from the page's icons folder: the
+    /// picture read already, or none until the read lands (LoadAsync draws
+    /// the page again when it has).</summary>
+    private static ImageSource? IconOf(string icon) => PageKitUI.IconCached(icon);
 
     /// <summary>The section buttons, as the page's three tabs: one panel is
     /// on at a time.</summary>

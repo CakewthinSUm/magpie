@@ -12,9 +12,34 @@
       only on a narrow one (PaneDisplayMode Auto), with the Settings item at
       the pane's foot where Windows puts it. The window's caption row is the
       NavigationView's own top strip — the pane toggle at the left, the app's
-      name beside it — and the page below it.
+      name beside it — and the page below it: the window's content runs into
+      the title bar (ExtendsContentIntoTitleBar, set in the code behind), so
+      that strip is the caption, with the system's buttons over it.
     -->
+    <!-- the window's own material (Mica, set in the code behind) is what
+         shows through: the shell draws no background of its own, and the
+         pages' cards sit on it -->
+    <Grid Background="Transparent">
+    <!-- the caption's drag area: the empty stretch of the top strip, between
+         the pane toggle and the window's buttons. It is the one place a drag
+         moves the window; everything under it is still the NavigationView's. -->
+    <Grid x:Name="CaptionDragArea" Height="48" VerticalAlignment="Top" Background="Transparent">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="140" />
+        </Grid.ColumnDefinitions>
+        <!-- the app's own name, as Windows' apps put it at the caption's left -->
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10"
+                    Margin="16,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False">
+            <Image Width="16" Height="16" Source="ms-appx:///Assets/magpie-32.png" />
+            <TextBlock Text="magpie" FontSize="12" VerticalAlignment="Center" Opacity="0.8" />
+        </StackPanel>
+        <Border Grid.Column="1" Background="Transparent" />
+    </Grid>
     <NavigationView x:Name="Nav"
+                    Background="Transparent"
+                    Margin="0,48,0,0"
                     IsBackButtonVisible="Collapsed"
                     IsSettingsVisible="True"
                     PaneDisplayMode="Auto"
@@ -61,4 +86,5 @@
 
         <Frame x:Name="Pages" />
     </NavigationView>
+    </Grid>
 </Window>

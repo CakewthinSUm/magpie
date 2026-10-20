@@ -3,7 +3,6 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace Magpie.Desktop.Pages;
@@ -87,6 +86,9 @@ public sealed partial class RoutingPage : Page, IRefreshable
             }
             DrawGroups();
             await PollAsync();
+            // each group's members' own logos, read through the signed-in
+            // client and drawn on the pass after they are read
+            await PageKitUI.LoadIconsAsync(_groups.Groups.SelectMany(g => g.MemberInfo).Select(m => m.Icon), DrawGroups);
         }, Status, Busy);
     }
 
@@ -441,18 +443,10 @@ public sealed partial class RoutingPage : Page, IRefreshable
         _ => "",
     };
 
-    /// <summary>A member's provider logo, from the page's icons
-    /// (/api/icons serves them); none when magpie has none. A name that
-    /// already carries its extension is used as it is: a provider's icon
-    /// may be a plugin's .png, as the page asks for it.</summary>
-    private static ImageSource? ProviderIcon(string? icon)
-    {
-        if (string.IsNullOrEmpty(icon)) return null;
-        var app = App.CurrentApp;
-        if (app.Client.BaseUrl.Length == 0) return null;
-        var name = icon.EndsWith(".svg") || icon.EndsWith(".png") ? icon : icon + ".svg";
-        return new BitmapImage(new Uri(app.Client.BaseUrl + "icons/" + Uri.EscapeDataString(name)));
-    }
+    /// <summary>A member's provider logo, from the page's icons folder: the
+    /// picture read already, or none until the read lands (LoadAsync draws
+    /// the groups again when it has).</summary>
+    private static ImageSource? ProviderIcon(string? icon) => PageKitUI.IconCached(icon);
 
     private void Routes_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {

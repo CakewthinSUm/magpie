@@ -1,7 +1,12 @@
 using Magpie.Desktop.Pages;
+using Microsoft.UI;
+using Microsoft.UI.Composition.SystemBackdrops;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
+using Color = Windows.UI.Color;
 
 namespace Magpie.Desktop;
 
@@ -28,6 +33,18 @@ public sealed partial class MainWindow : Window
         AppWindow.Title = "magpie";
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1180, 800));
+        // the page runs up into the title bar, as Windows' own apps do: the
+        // NavigationView's top strip is the caption, and only its empty part
+        // drags (the pane toggle and the name are still clicks)
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(CaptionDragArea);
+        AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Standard;
+        // the caption follows the app's light or dark, and the system's accent
+        // for its buttons, rather than a strip of its own above the page
+        ApplyLook();
+        // the pane's own words, in the language Settings picked (L): the
+        // XAML has the English, which is the page's key for it
+        TranslatePane();
 
         // a view named on the command line (`Magpie.Desktop.exe settings`),
         // else the page the reader left
@@ -35,6 +52,66 @@ public sealed partial class MainWindow : Window
         var asked = args.Length > 1 ? args[1] : "";
         var last = string.IsNullOrEmpty(asked) ? ViewMemory.Last : asked;
         Navigate(string.IsNullOrEmpty(last) ? "agents" : last);
+    }
+
+    /// <summary>
+    /// The caption's own colors: the system's buttons (close, minimize,
+    /// maximize) drawn in the theme's ink over the page's material, hovered
+    /// and pressed in a wash of that ink — as Windows' own apps do, so no
+    /// strip of its own sits above the page.
+    /// </summary>
+    private void TitleBarTheme()
+    {
+        var bar = AppWindow.TitleBar;
+        // the root's theme, else the system's: what the page beside it draws in
+        var dark = (Content as FrameworkElement)?.ActualTheme == ElementTheme.Dark;
+        var ink = dark ? Colors.White : Colors.Black;
+        bar.ButtonBackgroundColor = Colors.Transparent;
+        bar.ButtonInactiveBackgroundColor = Colors.Transparent;
+        bar.ButtonForegroundColor = ink;
+        bar.ButtonHoverForegroundColor = ink;
+        bar.ButtonPressedForegroundColor = ink;
+        bar.ButtonInactiveForegroundColor = dark ? Color.FromArgb(255, 160, 160, 160) : Color.FromArgb(255, 100, 100, 100);
+        // the wash is the ink's own, at an alpha, so it reads on either material
+        var r = ink.R; var g = ink.G; var b = ink.B;
+        bar.ButtonHoverBackgroundColor = Color.FromArgb(dark ? (byte)24 : (byte)16, r, g, b);
+        bar.ButtonPressedBackgroundColor = Color.FromArgb(dark ? (byte)36 : (byte)24, r, g, b);
+    }
+
+    /// <summary>
+    /// The caption's ink and the window's material, for the theme in force:
+    /// the app's own when Settings picked one, else Windows'. Applied at
+    /// start, and again when Settings changes it — with the root's own theme,
+    /// which is what a page drawn after it follows.
+    /// </summary>
+    public void ApplyLook(ElementTheme? theme = null)
+    {
+        // none is the look App holds, for a window made after Settings named one
+        var wanted = theme ?? (App.Dark ? ElementTheme.Dark : ElementTheme.Default);
+        if (Content is FrameworkElement root && root.RequestedTheme != wanted) root.RequestedTheme = wanted;
+        ApplyBackdrop();
+        TitleBarTheme();
+    }
+
+    /// <summary>
+    /// The window's material, as Windows 11's own apps have one: Mica draws
+    /// the desktop's wallpaper, blurred and tinted, behind the app — through
+    /// the caption and the pane, which is why the page runs into the title
+    /// bar. Where the system has no Mica (Windows 10, or a build before
+    /// 22000), the window keeps a plain theme background, which the page
+    /// draws over anyway.
+    /// </summary>
+    private void ApplyBackdrop()
+    {
+        try
+        {
+            SystemBackdrop = new MicaBackdrop { Kind = MicaKind.BaseAlt };
+        }
+        catch (Exception e)
+        {
+            // a system without Mica: the plain background stands
+            App.Log("no mica backdrop: " + e.Message);
+        }
     }
 
     /// <summary>Opens a page by the view name the page's own links use
@@ -84,11 +161,31 @@ public sealed partial class MainWindow : Window
         Pages.Navigate(page, view, new SuppressNavigationTransitionInfo());
     }
 
+    /// <summary>The pane's own words in the language in force: each item's
+    /// text as XAML has it in English is its key in the page's translations.
+    /// The page under it is walked the same way once it is drawn.</summary>
+    private void TranslatePane() => L.Walk(Nav);
+
+    /// <summary>Draws the page it is on again, for a change every page says
+    /// (the language): the same view, read and drawn anew.</summary>
+    public void Redraw()
+    {
+        TranslatePane();
+        if (Pages.Content is IRefreshable drawn) _ = drawn.Kit.Refresh();
+        else if (Pages.Content is WebHostPage web) web.Open(web.View);
+    }
+
     private void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
+        // the pane's own items carry their view as their Tag ("agents"); the
+        // Settings item NavigationView makes carries "Settings", with a
+        // capital, so the tag is matched case-insensitively — a capital it
+        // didn't match sent the click to a page with no case for it, which is
+        // the page in a WebView2 (the one place Settings came out as the web
+        // page rather than this app's own)
         var tag = args.SelectedItem switch
         {
-            NavigationViewItem { Tag: string t } => t,
+            NavigationViewItem { Tag: string t } => t.ToLowerInvariant(),
             _ when ReferenceEquals(args.SelectedItem, sender.SettingsItem) => "settings",
             _ => "",
         };

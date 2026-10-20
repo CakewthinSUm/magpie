@@ -68,6 +68,30 @@ public sealed class TrayIcon : IDisposable
         App.Log($"tray icon added: {_added}, icon handle {_hicon}");
     }
 
+    /// <summary>
+    /// A notification from the tray icon: its title and its line, as the
+    /// Windows app's notifications were (magpie's own usage and balance
+    /// alerts, an update ready). Windows 10 and 11 show it as a toast in the
+    /// corner; the icon is the app's own.
+    /// </summary>
+    public void Notify(string title, string text, bool warning = false)
+    {
+        if (!_added) return;
+        var data = new NativeMethods.NOTIFYICONDATA
+        {
+            cbSize = Marshal.SizeOf<NativeMethods.NOTIFYICONDATA>(),
+            hWnd = _hwnd,
+            uID = IconId,
+            uFlags = NativeMethods.NIF_INFO,
+            szTip = "",
+            szInfo = text.Length > 255 ? text[..255] : text,
+            szInfoTitle = title.Length > 63 ? title[..63] : title,
+            dwInfoFlags = (uint)((warning ? NativeMethods.NIIF_WARNING : NativeMethods.NIIF_INFO) | NativeMethods.NIIF_NOSOUND),
+            hIcon = _hicon,
+        };
+        NativeMethods.Shell_NotifyIcon(NativeMethods.NIM_MODIFY, ref data);
+    }
+
     /// <summary>Changes the tooltip: the version, or what an update waits for.</summary>
     public void SetTooltip(string tooltip)
     {

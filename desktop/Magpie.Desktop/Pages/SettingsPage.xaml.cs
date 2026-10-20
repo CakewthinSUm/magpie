@@ -58,6 +58,13 @@ public sealed partial class SettingsPage : Page, IRefreshable
         await PageKit.RunAsync(async () =>
         {
             _settings = await App.CurrentApp.Client.GetAsync<SettingsFullJson>("settings") ?? new SettingsFullJson();
+            // open at login is this app's own Run value, not magpie web's
+            // (Autostart), so the page is told what the system has for this
+            // exe rather than what magpie.exe's record says
+            _settings.Login = Autostart.Enabled();
+            // Sync and backup's own view is a second endpoint, read with the
+            // page so the tab is drawn from what is on disk now
+            if (_part == "sync") _sync = await App.CurrentApp.Client.GetAsync<DavSyncViewJson>("davsync") ?? _sync;
             Draw();
             // the version's own state is asked after the page is drawn: it
             // may wait on the feed
@@ -89,7 +96,11 @@ public sealed partial class SettingsPage : Page, IRefreshable
             : ReferenceEquals(sender.SelectedItem, SyncTab) ? "sync"
             : ReferenceEquals(sender.SelectedItem, AboutTab) ? "about"
             : "general";
-        Draw();
+        // Sync and backup's view is its own endpoint: read it as the tab
+        // opens, so what it shows is what is on disk now (the CLI can have
+        // changed the setup behind the window)
+        if (_part == "sync") _ = LoadAsync();
+        else Draw();
     }
 
     private void Draw()
@@ -105,8 +116,26 @@ public sealed partial class SettingsPage : Page, IRefreshable
             case "general":
                 DrawGeneral();
                 break;
+            case "usage":
+                DrawUsage();
+                break;
+            case "network":
+                DrawNetwork();
+                break;
+            case "models":
+                DrawModels();
+                break;
+            case "privacy":
+                DrawPrivacy();
+                break;
+            case "otel":
+                DrawOtel();
+                break;
+            case "sync":
+                DrawSync();
+                break;
             default:
-                DrawElsewhere();
+                DrawGeneral();
                 break;
         }
     }
@@ -125,7 +154,7 @@ public sealed partial class SettingsPage : Page, IRefreshable
             Control = PageKitUI.Choices(
                 [("system", "System"), ("light", "Light"), ("dark", "Dark")],
                 s.Theme is { Length: > 0 } theme ? theme : "system",
-                v => _ = SaveAsync(new { theme = v })),
+                v => _ = SaveThemeAsync(v)),
         }));
         Body.Children.Add(PageKitUI.Setting(new SettingRow
         {
@@ -141,7 +170,7 @@ public sealed partial class SettingsPage : Page, IRefreshable
             Title = "Language",
             Description = "The language of magpie's windows, its page and the menu bar.",
             Control = PageKitUI.Menu(LanguageChoices(), s.Lang is { Length: > 0 } lang ? lang : "system",
-                v => _ = SaveAsync(new { lang = v })),
+                v => _ = SaveLanguageAsync(v)),
         }));
         Body.Children.Add(PageKitUI.Setting(new SettingRow
         {
@@ -340,49 +369,15 @@ public sealed partial class SettingsPage : Page, IRefreshable
         _busy = false;
     }
 
-    // ---- the parts not drawn here ----
-
-    /// <summary>
-    /// A part whose settings this page doesn't draw yet: its name, and the
-    /// settings it holds, so a reader knows they exist and where they are
-    /// drawn (the page magpie serves, until each is drawn here).
-    /// </summary>
-    private void DrawElsewhere()
-    {
-        var (title, what) = _part switch
-        {
-            "usage" => ("Allowances", "what the menu bar shows, how often, the allowance display and reads, currency, and the warm-ups and daily check-ins."),
-            "network" => ("Network and sharing", "the proxy, the GitHub token, the gateway's port and local-network sharing, and the web pages allowed to reach it."),
-            "models" => ("Models", "the model that describes images, the one that searches, the one that draws, and the models turned off."),
-            "privacy" => ("Privacy", "what is masked before a request goes out, and whether the agents' sign-ins are read."),
-            "otel" => ("Observability", "OpenTelemetry: where traces and metrics go, what is sent, and whether request bodies go with them."),
-            "sync" => ("Sync and backup", "a remote that keeps the setup the same on every computer, and a sealed file to carry by hand."),
-            _ => ("Settings", ""),
-        };
-        Body.Children.Add(PageKitUI.Heading(title));
-        Body.Children.Add(new TextBlock
-        {
-            Text = "Not drawn here yet: " + what,
-            TextWrapping = TextWrapping.Wrap,
-            Opacity = 0.8,
-            Margin = new Thickness(2, 0, 2, 8),
-        });
-        Body.Children.Add(new TextBlock
-        {
-            Text = "They are in Settings in magpie's own page; open " + title + " there until this page draws them.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 12,
-            Opacity = 0.6,
-            Margin = new Thickness(2, 0, 2, 8),
-        });
-    }
-
     // ---- writes ----
 
     /// <summary>
-    /// A save of what changed: POST /api/settings reads the body as the whole
-    /// settings file and keeps what other pages own, so only the changed
-    /// values are sent; the answer is the page as magpie saved it.
+    /// A save of what changed: the whole settings snapshot with the one
+    /// changed value overlaid, as the web page sends it (prefsKeep). The
+    /// bulk handler carries forward only what *other* pages own; the Settings
+    /// page's own values (currency, lang, vision, otel, trayUsages…) must be
+    /// sent whole again or a single-field save resets them. The answer is the
+    /// page as magpie saved it.
     /// </summary>
     private async Task SaveAsync(object change)
     {
@@ -390,10 +385,118 @@ public sealed partial class SettingsPage : Page, IRefreshable
         await PageKit.RunAsync(async () =>
         {
             _busy = true;
-            _settings = await App.CurrentApp.Client.PostAsync<SettingsFullJson>("settings", change) ?? _settings;
+            var body = Snapshot();
+            foreach (var (k, v) in ToDictionary(change)) body[k] = v;
+            _settings = await App.CurrentApp.Client.PostAsync<SettingsFullJson>("settings", body) ?? _settings;
             Draw();
         }, Status, Busy);
         _busy = false;
+    }
+
+    /// <summary>The settings the bulk route owns, sent whole on every save:
+    /// the web page's prefsKeep keys, drawn from what a read already gave
+    /// (settingsJSON sends them all back).</summary>
+    private Dictionary<string, object?> Snapshot()
+    {
+        var s = _settings!;
+        // a field the snapshot must carry so a save doesn't reset it, and the
+        // value from the read (a missing one stays as the read's default)
+        return new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["theme"] = s.Theme,
+            ["colorblind"] = s.Colorblind,
+            ["lang"] = s.Lang,
+            ["tray"] = s.Tray,
+            ["dock"] = s.Dock,
+            ["dockWindow"] = s.DockWindow,
+            ["lightweight"] = s.Lightweight,
+            ["keepAwake"] = s.KeepAwake,
+            ["keepAwakeDisplay"] = s.KeepAwakeDisplay,
+            ["noWSLAgents"] = s.NoWSLAgents,
+            ["sessionTerminal"] = s.SessionTerminal,
+            ["proxy"] = s.Proxy,
+            ["otel"] = s.Otel,
+            ["trayUsages"] = s.TrayUsages ?? [],
+            ["redact"] = s.Redact,
+            ["redactPersonal"] = s.RedactPersonal,
+            ["redactKinds"] = s.RedactKinds ?? [],
+            ["redactWords"] = s.RedactWords ?? [],
+            ["codexWarmup"] = s.CodexWarmup,
+            ["claudeWarmup"] = s.ClaudeWarmup,
+            ["codexWarmAt"] = s.CodexWarmAt,
+            ["claudeWarmAt"] = s.ClaudeWarmAt,
+            ["codexWarmAts"] = s.CodexWarmAts ?? [],
+            ["claudeWarmAts"] = s.ClaudeWarmAts ?? [],
+            ["workbuddyCheckin"] = s.WorkBuddyCheckin,
+            ["traeCheckin"] = s.TraeCheckin,
+            ["minimaxCheckin"] = s.MiniMaxCheckin,
+            ["qoderCheckin"] = s.QoderCheckin,
+            ["noStats"] = s.NoStats,
+            ["noUsageStats"] = s.NoUsageStats,
+            ["memberModel"] = s.MemberModel,
+            ["noLoopGuard"] = s.NoLoopGuard,
+            ["claudeLeanPrompt"] = s.ClaudeLeanPrompt,
+            ["refusalRetries"] = s.RefusalRetries,
+            ["noUpdatePill"] = s.NoUpdatePill,
+            ["noAutoUpdate"] = s.NoAutoUpdate,
+            ["updateEvery"] = s.UpdateEvery,
+            ["autoRestart"] = s.AutoRestart,
+            ["noAutoDownload"] = s.NoAutoDownload,
+            ["trayUsage"] = s.TrayUsage,
+            ["trayUsageEvery"] = s.TrayUsageEvery,
+            ["trayNoLogos"] = s.TrayNoLogos,
+            ["trayNoBird"] = s.TrayNoBird,
+            ["trayPace"] = s.TrayPace,
+            ["trayNoCost"] = s.TrayNoCost,
+            ["vision"] = s.Vision,
+            ["visionEffort"] = s.VisionEffort,
+            ["searcherEffort"] = s.SearcherEffort,
+            ["imageGen"] = s.ImageGen,
+            ["searcher"] = s.Searcher,
+            ["searchFirst"] = s.SearchFirst,
+            ["currency"] = s.Currency,
+            ["chineseUnits"] = s.ChineseUnits,
+            ["usageAlert"] = s.UsageAlert,
+            ["balanceAlert"] = s.BalanceAlert,
+            ["resetReminder"] = s.ResetReminder,
+            ["turnDoneAlert"] = s.TurnDoneAlert,
+        };
+    }
+
+    /// <summary>An anonymous change object's properties as key/value pairs
+    /// (a save sends `new { theme = v }`), with the JSON names the route
+    /// reads (camelCase, as the page's API is).</summary>
+    private static IEnumerable<KeyValuePair<string, object?>> ToDictionary(object change)
+    {
+        foreach (var p in change.GetType().GetProperties())
+        {
+            yield return new KeyValuePair<string, object?>(p.Name, p.GetValue(change));
+        }
+    }
+
+    /// <summary>
+    /// Saves the settings snapshot with the otel object (and any other
+    /// nested value) overlaid, as one change. True when magpie took it: the
+    /// page is then drawn from its answer. False leaves the page as it was
+    /// (the caller draws it again from what magpie kept), with the reason in
+    /// the status line — so a refused change doesn't leave the control
+    /// showing a value magpie turned down.
+    /// </summary>
+    private async Task<bool> SaveWithRedrawAsync(string path, object overlay)
+    {
+        var ok = false;
+        await PageKit.RunAsync(async () =>
+        {
+            _busy = true;
+            var body = Snapshot();
+            if (overlay is OTelJson otel) body["otel"] = otel;
+            else foreach (var (k, v) in ToDictionary(overlay)) body[k] = v;
+            _settings = await App.CurrentApp.Client.PostAsync<SettingsFullJson>(path, body) ?? _settings;
+            Draw();
+            ok = true;
+        }, Status, Busy);
+        _busy = false;
+        return ok;
     }
 
     /// <summary>The text size is set on its own route: the keyboard's zoom
@@ -411,15 +514,70 @@ public sealed partial class SettingsPage : Page, IRefreshable
         _busy = false;
     }
 
-    /// <summary>Open at login is the system's record, not a setting, so it has
-    /// its own route.</summary>
+    /// <summary>
+    /// The language: saved as the page saves it, then read back through the
+    /// app (L), which every page's words are drawn from. The window is then
+    /// rebuilt on the page it is on, so every word it says is the new
+    /// language's, not only this page's.
+    /// </summary>
+    private async Task SaveLanguageAsync(string lang)
+    {
+        if (_busy) return;
+        await PageKit.RunAsync(async () =>
+        {
+            _busy = true;
+            _settings = await App.CurrentApp.Client.PostAsync<SettingsFullJson>("settings", SnapshotWith("lang", lang)) ?? _settings;
+            await App.UseLanguageAsync();
+            App.CurrentApp.ReloadWindow();
+            Draw();
+        }, Status, Busy);
+        _busy = false;
+    }
+
+    /// <summary>
+    /// A save of the look: magpie keeps it, and the app wears it at once —
+    /// the caption, the material and every page's marks, which are pictures
+    /// of the ink they were read with.
+    /// </summary>
+    private async Task SaveThemeAsync(string theme)
+    {
+        if (_busy) return;
+        await PageKit.RunAsync(async () =>
+        {
+            _busy = true;
+            _settings = await App.CurrentApp.Client.PostAsync<SettingsFullJson>("settings", SnapshotWith("theme", theme)) ?? _settings;
+            // the look is the app's: it reads every page's marks again
+            App.UseTheme(theme);
+            Draw();
+        }, Status, Busy);
+        _busy = false;
+    }
+
+    /// <summary>The snapshot with one field set, for a save that must carry
+    /// the rest as they are.</summary>
+    private Dictionary<string, object?> SnapshotWith(string key, object? value)
+    {
+        var body = Snapshot();
+        body[key] = value;
+        return body;
+    }
+
+    /// <summary>
+    /// Open at login is the system's record, not a setting: the app writes
+    /// the Run value itself (Autostart), pointing at this exe, rather than
+    /// asking magpie web, whose own record starts magpie.exe — the backend
+    /// beside this app, which has no window to open at login. The page's
+    /// value is then read back from the registry, so it says what the system
+    /// does.
+    /// </summary>
     private async Task SaveLoginAsync(bool on)
     {
         if (_busy) return;
         await PageKit.RunAsync(async () =>
         {
             _busy = true;
-            _settings = await App.CurrentApp.Client.PostAsync<SettingsFullJson>("settings/login", new { on }) ?? _settings;
+            Autostart.Set(on);
+            _settings!.Login = Autostart.Enabled();
             Draw();
         }, Status, Busy);
         _busy = false;

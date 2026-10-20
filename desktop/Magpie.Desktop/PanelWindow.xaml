@@ -9,8 +9,10 @@
     <!-- The quick panel a tray click drops: the same page in its panel mode
          (?mode=panel), which is narrower and has the tray's tabs. It sizes
          itself from the page (/api/window/fit) and hides when another window
-         takes the focus. -->
-    <Grid x:Name="Root" Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}">
+         takes the focus. Its material is acrylic, which Windows 11 gives a
+         flyout rather than Mica (a panel over the desktop, not a window that
+         fills it), set in the code behind. -->
+    <Grid x:Name="Root" Background="Transparent">
         <Grid.RowDefinitions>
             <RowDefinition Height="36" />
             <RowDefinition Height="*" />

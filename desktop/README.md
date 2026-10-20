@@ -48,7 +48,7 @@ wins.
 | Gateway | XAML (`Pages/GatewayPage`): the gateway's state and address, how to connect in each API, the caller keys, and the recent calls with their bodies a fold away |
 | Routing | XAML (`Pages/RoutingPage`): the gateway's trace of each request, its story, and the routing groups |
 | Plugins | XAML (`Pages/PluginsPage`): installed plugins, the built-in ones and their switches, and the market to install from |
-| Settings | XAML (`Pages/SettingsPage`): General and About drawn, the other parts named with a line saying they are not drawn yet |
+| Settings | XAML (`Pages/SettingsPage`): every part — General and About, Allowances, Network and sharing, Models, Privacy, Observability and Sync and backup (`SettingsPage.Usage/Network/Models/Privacy/Otel/Sync.cs`) |
 
 Each page drawn here takes one WebView2 away. A community plugin's page stays
 a web page, as it is everywhere.
@@ -72,10 +72,47 @@ The app finds `magpie.exe` beside itself, on `PATH`, or at `MAGPIE_EXE`.
 pwsh desktop/Magpie.Desktop/Assets/make-ico.ps1
 ```
 
+## The shell
+
+The window is drawn as Windows 11's own apps are: its content runs into the
+title bar (`ExtendsContentIntoTitleBar`), so the NavigationView's top strip is
+the caption — the app's name at the left, the system's buttons at the right,
+the empty stretch between them dragging the window — and Mica (`MicaBackdrop`)
+shows the desktop's wallpaper, blurred and tinted, behind it and the pane.
+
+The tray icon says what the app does: a notification when the window closes
+that magpie keeps running in the tray, and one for a `magpie://import` link,
+which the Providers page has no import to answer yet.
+
+Open at login is the app's own Run value, `magpie-desktop`, pointing at this
+exe (`Autostart.cs`). It is not the backend's `magpie` value, which starts
+`magpie.exe` — the Go program beside this one — so an installed magpie the
+user already opens at login keeps its own and the two never take each
+other's place. `magpie://` links register this exe as their handler
+(`Scheme.cs`), as the Wails app registered its own.
+
+## The words
+
+The pages say what the page says, in the language Settings picked. The
+translations are the page's own (`internal/gui/assets/i18n.js`), keyed by the
+English as the page writes it, so a word the page already translates is the
+app's translation too: `desktop/gen-strings.mjs` reads i18n.js and writes
+`Magpie.Desktop/Strings.cs`, and `L.T` looks a word up in it. A word the page
+has no key for goes in `desktop/strings-extra.json`, which the script merges
+after i18n.js.
+
+```sh
+node desktop/gen-strings.mjs   # after changing a word a page says
+```
+
+`L.Walk` translates a page's text once it is drawn, so a page's own code
+needn't wrap each word; a word the table doesn't know stays English, as the
+page leaves it. What magpie's API returns (a window's name, a reset time) is
+magpie's own and is not translated here.
+
 ## What this prototype doesn't do yet
 
-- Notifications, `magpie://` links, open at login, the title bar's tint, the
-  panel's acrylic and glide from the Wails app.
-- The pages above are still web pages; they are drawn in XAML one at a time.
+- The panel's glide from the Wails app; a `magpie://import` link's provider,
+  which needs the Providers page's import drawn.
 - The release is still one `magpie-windows-<arch>.exe`; shipping two programs
   is its own change (magpie-releases, self-update, the site's downloads).

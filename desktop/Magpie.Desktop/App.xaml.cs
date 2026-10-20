@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Magpie.Desktop.Backend;
+using Magpie.Desktop.Pages;
 using Magpie.Desktop.Tray;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
@@ -27,6 +28,9 @@ public partial class App : Application
     private DesktopChannel? _channel;
     /// <summary>The window's thread, which the backend's poll hands work to.</summary>
     private DispatcherQueue _ui = null!;
+    /// <summary>Whether the tray has already said the app keeps running with
+    /// its window closed: said once, not at every close.</summary>
+    private bool _saidStillRunning;
 
     /// <summary>The page's address and key, once magpie is up.</summary>
     public static App CurrentApp => (App)Current;
@@ -73,6 +77,11 @@ public partial class App : Application
             await _client.SignInAsync(_backend);
             _backend.Version = await _client.VersionAsync();
 
+            // the words the pages say, in the language Settings picked: the
+            // page's own translations (L, from i18n.js), read once here and
+            // again when the language changes
+            await UseLanguageAsync();
+
             // what magpie web's host has no window for: the app answers it
             _channel = new DesktopChannel
             {
@@ -88,12 +97,18 @@ public partial class App : Application
             _tray.Activated += () => _ = _ui.TryEnqueue(TogglePanel);
             _tray.MenuRequested += () => _ = _ui.TryEnqueue(ShowTrayMenu);
 
+            // magpie:// links, as the Wails app registered them: this exe,
+            // now, so a copy that moved answers from its new place
+            Scheme.Register();
+
             // the window is the first thing a launch shows, as the app's did;
             // the panel comes with the first tray click, or when asked for
             // (`Magpie.Desktop.exe panel`, as `magpie panel` asks)
             var args = Environment.GetCommandLineArgs();
+            var link = Scheme.FromArgs(args);
             if (args.Length > 1 && args[1] == "panel") TogglePanel();
-            else ShowMain("");
+            else ShowMain(link.Length > 0 ? LinkView(link) : "");
+            if (link.Length > 0) LinkSaid(link);
             Log("window up");
         }
         catch (Exception e)
@@ -109,10 +124,125 @@ public partial class App : Application
         if (_main is null)
         {
             _main = new MainWindow();
-            _main.Closed += (_, _) => { _main = null; }; // closing hides the window: the tray stays
+            // closing hides the window: the tray stays, and the app says so
+            // once, the way Windows' own tray apps do — otherwise a closed
+            // window reads as a quit that didn't happen
+            _main.Closed += (_, _) =>
+            {
+                _main = null;
+                if (!_saidStillRunning)
+                {
+                    _saidStillRunning = true;
+                    _tray?.Notify("magpie", "magpie is still running: its icon is in the tray, and the gateway keeps serving.");
+                }
+            };
         }
         _main.Activate();
         if (!string.IsNullOrEmpty(view)) _main.Navigate(view);
+    }
+
+    /// <summary>
+    /// Draws the window's page again: what the language change needs, since
+    /// the words are set when a page is drawn. The window stays where it is
+    /// and on the view it was on.
+    /// </summary>
+    public void ReloadWindow() => _main?.Redraw();
+
+    /// <summary>
+    /// Sets the language the pages are drawn in, from Settings' lang: "" or
+    /// "system" follows Windows' own UI language, one magpie doesn't speak
+    /// falling back to English (as the page does). The look is read here too,
+    /// before any window is drawn: a theme is every page's, not a word one
+    /// says.
+    /// </summary>
+    public static async Task UseLanguageAsync()
+    {
+        var lang = "";
+        var theme = "";
+        try
+        {
+            var s = await CurrentApp.Client.GetAsync<Backend.SettingsFullJson>("settings");
+            lang = s?.Lang ?? "";
+            theme = s?.Theme ?? "";
+        }
+        catch (Exception) { /* English stands, and the system's look */ }
+        if (lang.Length == 0 || lang == "system") lang = SystemLanguage();
+        // the words first: UseTheme redraws a window already open, and a
+        // window redrawn before L has the language says its pane in English
+        L.Use(lang);
+        UseTheme(theme);
+        Log("language: " + (lang.Length > 0 ? lang : "en"));
+    }
+
+    /// <summary>
+    /// Sets the look the pages are drawn in, from Settings' theme: "light" or
+    /// "dark" is the app's own, and "" or "system" follows Windows' as every
+    /// page's ThemeResource does. It is the window's root that carries it
+    /// (Application.RequestedTheme is refused once the app has started, and
+    /// a window made then cannot follow it). A mark the page leaves to the
+    /// text is tinted with the theme's ink, so a change reads them again.
+    /// </summary>
+    public static void UseTheme(string theme)
+    {
+        var wanted = theme == "light" ? ElementTheme.Light : theme == "dark" ? ElementTheme.Dark : ElementTheme.Default;
+        if (wanted == _theme) return;
+        _theme = wanted;
+        // a mark the page leaves to the text was read in the old theme's ink,
+        // so every picture is let go and the page reads them in the new one
+        PageKitUI.ForgetIcons();
+        if (CurrentApp._main is { } main) main.ApplyLook(wanted);
+        CurrentApp.ReloadWindow();
+        Log("theme: " + (theme.Length > 0 ? theme : "system"));
+    }
+
+    /// <summary>The look in force, for a window made after Settings named
+    /// one.</summary>
+    private static ElementTheme _theme = ElementTheme.Default;
+
+    /// <summary>Whether the pages are drawn dark: what a mark the page leaves
+    /// to the text is tinted with.</summary>
+    public static bool Dark => _theme == ElementTheme.Dark;
+
+    /// <summary>Windows' own UI language as magpie names it, or "" for
+    /// English: the page knows zh, zh-TW, ja and de.</summary>
+    private static string SystemLanguage()
+    {
+        var tag = Windows.Globalization.ApplicationLanguages.Languages.FirstOrDefault() ?? "";
+        return tag.ToLowerInvariant() switch
+        {
+            var t when t.StartsWith("zh-tw") || t.StartsWith("zh-hk") || t.StartsWith("zh-hant") => "zh-TW",
+            var t when t.StartsWith("zh") => "zh",
+            var t when t.StartsWith("ja") => "ja",
+            var t when t.StartsWith("de") => "de",
+            _ => "",
+        };
+    }
+
+    /// <summary>
+    /// The view a <c>magpie://</c> link opens. An <c>import</c> link names a
+    /// provider to add, which the Providers page's own import answers; the
+    /// page drawn here has no import yet, so the link brings the reader to
+    /// Providers and says what it carried (LinkSaid). Every other link is a
+    /// view of the page's own (<c>magpie://settings</c>).
+    /// </summary>
+    private static string LinkView(string link)
+    {
+        var rest = link["magpie://".Length..];
+        var path = rest.Split('?')[0].Trim('/').ToLowerInvariant();
+        return path is "import" or "providers" ? "providers" : path.Length > 0 ? path : "agents";
+    }
+
+    /// <summary>What a link brought, said once the window is up: an import
+    /// link is not applied yet (the Providers page has no import drawn), so
+    /// it is said rather than dropped silently.</summary>
+    private void LinkSaid(string link)
+    {
+        var rest = link["magpie://".Length..];
+        var path = rest.Split('?')[0].Trim('/').ToLowerInvariant();
+        if (path != "import") return;
+        var line = "A magpie://import link opened magpie. Importing a provider from a link isn't drawn in this app yet: add it in Providers, or open magpie's page.";
+        Log(line + " (" + link + ")");
+        _tray?.Notify("magpie", line, warning: true);
     }
 
     public void HidePanel() => _panel?.HidePanel();
@@ -161,6 +291,27 @@ public partial class App : Application
         picker.FileTypeFilter.Add("*");
         var folder = await picker.PickSingleFolderAsync();
         return folder?.Path ?? "";
+    }
+
+    /// <summary>Windows' file picker, for a page that needs a file (a backup
+    /// to import): its bytes, or null when nothing was picked. The page asks
+    /// here rather than opening a picker itself, which needs the window's
+    /// handle.</summary>
+    public async Task<(string Name, byte[] Data)?> ChooseFileAsync(string title, string extension)
+    {
+        var picker = new Windows.Storage.Pickers.FileOpenPicker();
+        var hwnd = _main is not null ? WinRT.Interop.WindowNative.GetWindowHandle(_main)
+            : _panel is not null ? WinRT.Interop.WindowNative.GetWindowHandle(_panel)
+            : IntPtr.Zero;
+        if (hwnd != IntPtr.Zero) WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+        picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.Downloads;
+        picker.FileTypeFilter.Add(extension);
+        var file = await picker.PickSingleFileAsync();
+        if (file is null) return null;
+        using var stream = await file.OpenStreamForReadAsync();
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory);
+        return (file.Name, memory.ToArray());
     }
 
     /// <summary>Quits magpie and the app: the backend this app started goes
