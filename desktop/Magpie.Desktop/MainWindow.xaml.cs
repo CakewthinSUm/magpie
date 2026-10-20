@@ -162,9 +162,15 @@ public sealed partial class MainWindow : Window
 
     private void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
+        // the pane's own items carry their view as their Tag ("agents"); the
+        // Settings item NavigationView makes carries "Settings", with a
+        // capital, so the tag is matched case-insensitively — a capital it
+        // didn't match sent the click to a page with no case for it, which is
+        // the page in a WebView2 (the one place Settings came out as the web
+        // page rather than this app's own)
         var tag = args.SelectedItem switch
         {
-            NavigationViewItem { Tag: string t } => t,
+            NavigationViewItem { Tag: string t } => t.ToLowerInvariant(),
             _ when ReferenceEquals(args.SelectedItem, sender.SettingsItem) => "settings",
             _ => "",
         };
