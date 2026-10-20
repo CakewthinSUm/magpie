@@ -92,15 +92,38 @@ public sealed class MagpieClient : IDisposable
     }
 
     /// <summary>The page's own failure text, as the page shows it: magpie
-    /// answers a refused change with the reason in the body.</summary>
+    /// answers a refused change with the reason in the body, as
+    /// <c>{"error":"…"}</c> (gui.fail), so the reason alone is shown, not
+    /// the JSON around it.</summary>
     private static async Task EnsureOkAsync(HttpResponseMessage resp, string path)
     {
         if (resp.IsSuccessStatusCode) return;
         var body = "";
         try { body = (await resp.Content.ReadAsStringAsync().ConfigureAwait(false)).Trim(); }
         catch (Exception) { /* the reason is the status, then */ }
+        var reason = Reason(body);
         throw new MagpieException(path, (int)resp.StatusCode,
-            body.Length > 0 ? body : $"{(int)resp.StatusCode} {resp.ReasonPhrase}");
+            reason.Length > 0 ? reason : $"{(int)resp.StatusCode} {resp.ReasonPhrase}");
+    }
+
+    /// <summary>The reason in an answer's body: the <c>error</c> of
+    /// magpie's <c>{"error":"…"}</c>, or the body as it is when it is no
+    /// such JSON (a proxy's HTML page, say).</summary>
+    private static string Reason(string body)
+    {
+        if (body.Length == 0 || body[0] != '{') return body;
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+                doc.RootElement.TryGetProperty("error", out var err) &&
+                err.ValueKind == JsonValueKind.String)
+            {
+                return err.GetString() ?? "";
+            }
+        }
+        catch (JsonException) { /* not the page's JSON: the body stands */ }
+        return body;
     }
 
     public void Dispose() => _http.Dispose();

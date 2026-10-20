@@ -213,12 +213,15 @@ public static class PageKitUI
     /// select, docs/code-standards.md). Changed fires once, with the value
     /// picked.
     /// </summary>
-    public static Button Menu(IEnumerable<(string Value, string Label)> values, string picked, Action<string> changed)
+    public static Button Menu(IEnumerable<(string Value, string Label)> values, string picked, Action<string> changed,
+        string? buttonLabel = null)
     {
         var list = values.ToList();
         var button = new Button
         {
-            Content = list.FirstOrDefault(v => v.Value == picked).Label ?? picked,
+            // a picker that names an action ("Disable…") rather than the value
+            // in force says its own label until one is picked
+            Content = buttonLabel ?? list.FirstOrDefault(v => v.Value == picked).Label ?? picked,
             Padding = new Thickness(12, 4, 12, 4),
             HorizontalAlignment = HorizontalAlignment.Right,
         };
@@ -261,5 +264,147 @@ public static class PageKitUI
         bar.Severity = bad ? InfoBarSeverity.Warning : InfoBarSeverity.Success;
         bar.Message = text;
         bar.IsOpen = true;
+    }
+
+    /// <summary>A ToggleSwitch for a setting's row. The page owns its
+    /// _drawing guard: toggled fires with the new state, and must no-op
+    /// while the page draws (the switch is set in code then).</summary>
+    public static ToggleSwitch Switch(bool on, Action<bool> toggled)
+    {
+        var toggle = new ToggleSwitch
+        {
+            IsOn = on,
+            OnContent = "",
+            OffContent = "",
+            MinWidth = 0,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        toggle.Toggled += (_, _) => toggled(toggle.IsOn);
+        return toggle;
+    }
+
+    /// <summary>A text (or password) box with an explicit Apply button, for a
+    /// value the page saves on the button, never on blur (a field moved out
+    /// of must not save a half-typed value). apply receives the trimmed text.</summary>
+    public static FrameworkElement TextField(string value, string placeholder, Action<string> apply,
+        bool password = false, string applyLabel = "Save")
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        if (password)
+        {
+            var box = new PasswordBox
+            {
+                Password = value,
+                PlaceholderText = placeholder,
+                Width = 260,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            var save = new Button { Content = applyLabel, VerticalAlignment = VerticalAlignment.Center };
+            save.Click += (_, _) => apply(box.Password.Trim());
+            row.Children.Add(box);
+            row.Children.Add(save);
+            return row;
+        }
+        else
+        {
+            var box = new TextBox
+            {
+                Text = value,
+                PlaceholderText = placeholder,
+                Width = 260,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            var save = new Button { Content = applyLabel, VerticalAlignment = VerticalAlignment.Center };
+            box.KeyDown += (_, e) =>
+            {
+                if (e.Key == Windows.System.VirtualKey.Enter) apply(box.Text.Trim());
+            };
+            save.Click += (_, _) => apply(box.Text.Trim());
+            row.Children.Add(box);
+            row.Children.Add(save);
+            return row;
+        }
+    }
+
+    /// <summary>A number box with an Apply button; apply receives the parsed
+    /// int, or 0 when the box is empty or not a number.</summary>
+    public static FrameworkElement NumberField(int value, string placeholder, Action<int> apply, string applyLabel = "Apply")
+    {
+        var box = new TextBox
+        {
+            Text = value > 0 ? value.ToString() : "",
+            PlaceholderText = placeholder,
+            Width = 120,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var save = new Button { Content = applyLabel, VerticalAlignment = VerticalAlignment.Center };
+        void Send()
+        {
+            if (int.TryParse(box.Text.Trim(), out var n)) apply(n);
+        }
+        box.KeyDown += (_, e) => { if (e.Key == Windows.System.VirtualKey.Enter) Send(); };
+        save.Click += (_, _) => Send();
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        row.Children.Add(box);
+        row.Children.Add(save);
+        return row;
+    }
+
+    /// <summary>A confirm dialog; the caller must pass the page's XamlRoot
+    /// (a ContentDialog without one throws on ShowAsync). True on the
+    /// primary button.</summary>
+    public static async Task<bool> ConfirmAsync(XamlRoot root, string title, string message,
+        string primary = "OK", string cancel = "Cancel", bool danger = false)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = root,
+            Title = title,
+            Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap },
+            PrimaryButtonText = primary,
+            CloseButtonText = cancel,
+            DefaultButton = danger ? ContentDialogButton.Close : ContentDialogButton.Primary,
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
+
+    /// <summary>An add-row: a text box and an Add button, for a list of
+    /// values (CORS origins, allow IPs, disabled models, masking rules).
+    /// add receives the trimmed text.</summary>
+    public static FrameworkElement AddRow(string placeholder, Action<string> add, string addLabel = "Add")
+    {
+        var box = new TextBox { PlaceholderText = placeholder, Width = 260, VerticalAlignment = VerticalAlignment.Center };
+        var button = new Button { Content = addLabel, VerticalAlignment = VerticalAlignment.Center };
+        void Send()
+        {
+            var v = box.Text.Trim();
+            if (v.Length == 0) return;
+            add(v);
+            box.Text = "";
+        }
+        box.KeyDown += (_, e) => { if (e.Key == Windows.System.VirtualKey.Enter) Send(); };
+        button.Click += (_, _) => Send();
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        row.Children.Add(box);
+        row.Children.Add(button);
+        return row;
+    }
+
+    /// <summary>A link-style button that opens a URL through the backend's
+    /// POST /api/open, as the web page's "Get a key ↗" does.</summary>
+    public static Button LinkButton(string label, string url)
+    {
+        var button = new Button
+        {
+            Content = label + " ↗",
+            Padding = new Thickness(8, 2, 8, 2),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        button.Click += async (_, _) =>
+        {
+            try { await App.CurrentApp.Client.PostAsync("open", new { url }); }
+            catch (Exception) { /* opening failed; the row still works */ }
+        };
+        return button;
     }
 }

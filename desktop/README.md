@@ -48,7 +48,7 @@ wins.
 | Gateway | XAML (`Pages/GatewayPage`): the gateway's state and address, how to connect in each API, the caller keys, and the recent calls with their bodies a fold away |
 | Routing | XAML (`Pages/RoutingPage`): the gateway's trace of each request, its story, and the routing groups |
 | Plugins | XAML (`Pages/PluginsPage`): installed plugins, the built-in ones and their switches, and the market to install from |
-| Settings | XAML (`Pages/SettingsPage`): General and About drawn, the other parts named with a line saying they are not drawn yet |
+| Settings | XAML (`Pages/SettingsPage`): General and About, and the Allowances, Network and sharing, Models, Privacy and Observability parts (`SettingsPage.Usage/Network/Models/Privacy/Otel.cs`); Sync and backup is named with a line saying it is not drawn yet |
 
 Each page drawn here takes one WebView2 away. A community plugin's page stays
 a web page, as it is everywhere.

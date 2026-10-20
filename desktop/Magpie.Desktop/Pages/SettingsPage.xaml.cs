@@ -105,6 +105,21 @@ public sealed partial class SettingsPage : Page, IRefreshable
             case "general":
                 DrawGeneral();
                 break;
+            case "usage":
+                DrawUsage();
+                break;
+            case "network":
+                DrawNetwork();
+                break;
+            case "models":
+                DrawModels();
+                break;
+            case "privacy":
+                DrawPrivacy();
+                break;
+            case "otel":
+                DrawOtel();
+                break;
             default:
                 DrawElsewhere();
                 break;
@@ -380,9 +395,12 @@ public sealed partial class SettingsPage : Page, IRefreshable
     // ---- writes ----
 
     /// <summary>
-    /// A save of what changed: POST /api/settings reads the body as the whole
-    /// settings file and keeps what other pages own, so only the changed
-    /// values are sent; the answer is the page as magpie saved it.
+    /// A save of what changed: the whole settings snapshot with the one
+    /// changed value overlaid, as the web page sends it (prefsKeep). The
+    /// bulk handler carries forward only what *other* pages own; the Settings
+    /// page's own values (currency, lang, vision, otel, trayUsages…) must be
+    /// sent whole again or a single-field save resets them. The answer is the
+    /// page as magpie saved it.
     /// </summary>
     private async Task SaveAsync(object change)
     {
@@ -390,10 +408,118 @@ public sealed partial class SettingsPage : Page, IRefreshable
         await PageKit.RunAsync(async () =>
         {
             _busy = true;
-            _settings = await App.CurrentApp.Client.PostAsync<SettingsFullJson>("settings", change) ?? _settings;
+            var body = Snapshot();
+            foreach (var (k, v) in ToDictionary(change)) body[k] = v;
+            _settings = await App.CurrentApp.Client.PostAsync<SettingsFullJson>("settings", body) ?? _settings;
             Draw();
         }, Status, Busy);
         _busy = false;
+    }
+
+    /// <summary>The settings the bulk route owns, sent whole on every save:
+    /// the web page's prefsKeep keys, drawn from what a read already gave
+    /// (settingsJSON sends them all back).</summary>
+    private Dictionary<string, object?> Snapshot()
+    {
+        var s = _settings!;
+        // a field the snapshot must carry so a save doesn't reset it, and the
+        // value from the read (a missing one stays as the read's default)
+        return new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["theme"] = s.Theme,
+            ["colorblind"] = s.Colorblind,
+            ["lang"] = s.Lang,
+            ["tray"] = s.Tray,
+            ["dock"] = s.Dock,
+            ["dockWindow"] = s.DockWindow,
+            ["lightweight"] = s.Lightweight,
+            ["keepAwake"] = s.KeepAwake,
+            ["keepAwakeDisplay"] = s.KeepAwakeDisplay,
+            ["noWSLAgents"] = s.NoWSLAgents,
+            ["sessionTerminal"] = s.SessionTerminal,
+            ["proxy"] = s.Proxy,
+            ["otel"] = s.Otel,
+            ["trayUsages"] = s.TrayUsages ?? [],
+            ["redact"] = s.Redact,
+            ["redactPersonal"] = s.RedactPersonal,
+            ["redactKinds"] = s.RedactKinds ?? [],
+            ["redactWords"] = s.RedactWords ?? [],
+            ["codexWarmup"] = s.CodexWarmup,
+            ["claudeWarmup"] = s.ClaudeWarmup,
+            ["codexWarmAt"] = s.CodexWarmAt,
+            ["claudeWarmAt"] = s.ClaudeWarmAt,
+            ["codexWarmAts"] = s.CodexWarmAts ?? [],
+            ["claudeWarmAts"] = s.ClaudeWarmAts ?? [],
+            ["workbuddyCheckin"] = s.WorkBuddyCheckin,
+            ["traeCheckin"] = s.TraeCheckin,
+            ["minimaxCheckin"] = s.MiniMaxCheckin,
+            ["qoderCheckin"] = s.QoderCheckin,
+            ["noStats"] = s.NoStats,
+            ["noUsageStats"] = s.NoUsageStats,
+            ["memberModel"] = s.MemberModel,
+            ["noLoopGuard"] = s.NoLoopGuard,
+            ["claudeLeanPrompt"] = s.ClaudeLeanPrompt,
+            ["refusalRetries"] = s.RefusalRetries,
+            ["noUpdatePill"] = s.NoUpdatePill,
+            ["noAutoUpdate"] = s.NoAutoUpdate,
+            ["updateEvery"] = s.UpdateEvery,
+            ["autoRestart"] = s.AutoRestart,
+            ["noAutoDownload"] = s.NoAutoDownload,
+            ["trayUsage"] = s.TrayUsage,
+            ["trayUsageEvery"] = s.TrayUsageEvery,
+            ["trayNoLogos"] = s.TrayNoLogos,
+            ["trayNoBird"] = s.TrayNoBird,
+            ["trayPace"] = s.TrayPace,
+            ["trayNoCost"] = s.TrayNoCost,
+            ["vision"] = s.Vision,
+            ["visionEffort"] = s.VisionEffort,
+            ["searcherEffort"] = s.SearcherEffort,
+            ["imageGen"] = s.ImageGen,
+            ["searcher"] = s.Searcher,
+            ["searchFirst"] = s.SearchFirst,
+            ["currency"] = s.Currency,
+            ["chineseUnits"] = s.ChineseUnits,
+            ["usageAlert"] = s.UsageAlert,
+            ["balanceAlert"] = s.BalanceAlert,
+            ["resetReminder"] = s.ResetReminder,
+            ["turnDoneAlert"] = s.TurnDoneAlert,
+        };
+    }
+
+    /// <summary>An anonymous change object's properties as key/value pairs
+    /// (a save sends `new { theme = v }`), with the JSON names the route
+    /// reads (camelCase, as the page's API is).</summary>
+    private static IEnumerable<KeyValuePair<string, object?>> ToDictionary(object change)
+    {
+        foreach (var p in change.GetType().GetProperties())
+        {
+            yield return new KeyValuePair<string, object?>(p.Name, p.GetValue(change));
+        }
+    }
+
+    /// <summary>
+    /// Saves the settings snapshot with the otel object (and any other
+    /// nested value) overlaid, as one change. True when magpie took it: the
+    /// page is then drawn from its answer. False leaves the page as it was
+    /// (the caller draws it again from what magpie kept), with the reason in
+    /// the status line — so a refused change doesn't leave the control
+    /// showing a value magpie turned down.
+    /// </summary>
+    private async Task<bool> SaveWithRedrawAsync(string path, object overlay)
+    {
+        var ok = false;
+        await PageKit.RunAsync(async () =>
+        {
+            _busy = true;
+            var body = Snapshot();
+            if (overlay is OTelJson otel) body["otel"] = otel;
+            else foreach (var (k, v) in ToDictionary(overlay)) body[k] = v;
+            _settings = await App.CurrentApp.Client.PostAsync<SettingsFullJson>(path, body) ?? _settings;
+            Draw();
+            ok = true;
+        }, Status, Busy);
+        _busy = false;
+        return ok;
     }
 
     /// <summary>The text size is set on its own route: the keyboard's zoom
