@@ -7,7 +7,7 @@ namespace Magpie.Desktop.Backend;
 
 // ---- /api/state (api.go, stateJSON) ----
 
-public sealed class StateJson
+public class StateJson
 {
     public List<AgentJson> Agents { get; set; } = [];
     public List<ProfileJson> Profiles { get; set; } = [];
@@ -29,11 +29,67 @@ public sealed class AgentJson
     public bool Wired { get; set; }
     public string? Source { get; set; }
     public int Stale { get; set; }
+    public List<StaleCopyJson>? StaleCopies { get; set; }
     public ModelCountJson? Models { get; set; }
     public bool Menu { get; set; }
     public bool CliMissing { get; set; }
     public bool Joined { get; set; }
     public bool Failover { get; set; }
+    /// <summary>Its config no longer does what magpie set (agent.Drift).</summary>
+    public DriftJson? Drift { get; set; }
+    /// <summary>An app that takes magpie by a link of its own (Cindy).</summary>
+    public string? Import { get; set; }
+    /// <summary>Whether that app has magpie already; null when it can't be read.</summary>
+    public bool? Added { get; set; }
+    /// <summary>The command that starts it on magpie, for one that takes the
+    /// gateway only from its environment (agy).</summary>
+    public string? Launch { get; set; }
+    /// <summary>Its own list doesn't name magpie's models.</summary>
+    public bool NoNames { get; set; }
+    public NativeStateJson? Native { get; set; }
+}
+
+/// <summary>agent.Drift: what is off in an agent's config, and how to set it
+/// again.</summary>
+public sealed class DriftJson
+{
+    /// <summary>"unwired", "replaced", "bypassed", "unreachable" or "proxied".</summary>
+    public string Kind { get; set; } = "";
+    public string Field { get; set; } = "";
+    public string? Now { get; set; }
+    public string Want { get; set; } = "";
+    public string Detail { get; set; } = "";
+    public string? Addr { get; set; }
+    /// <summary>The address WSL reaches Windows at now, which reapplying
+    /// points it at.</summary>
+    public string? Move { get; set; }
+}
+
+/// <summary>agent.StaleCopy: a copy of a connected agent still running on the
+/// model list it started with.</summary>
+public sealed class StaleCopyJson
+{
+    /// <summary>"app", "ide", "daemon", "helper", "embedded" or "cli".</summary>
+    public string Kind { get; set; } = "";
+    public string? App { get; set; }
+    public DateTimeOffset Since { get; set; }
+}
+
+/// <summary>agent.NativeState: an agent magpie talks to rather than writes a
+/// config for (Aside), and what it says of each field.</summary>
+public sealed class NativeStateJson
+{
+    public string Provider { get; set; } = "";
+    public string? Detail { get; set; }
+    public string Runtime { get; set; } = "";
+    public Dictionary<string, NativeFieldJson> Fields { get; set; } = [];
+}
+
+public sealed class NativeFieldJson
+{
+    public string Value { get; set; } = "";
+    public string Status { get; set; } = "";
+    public string? Detail { get; set; }
 }
 
 public sealed class FieldJson
@@ -50,7 +106,33 @@ public sealed class OptionJson
     public string? Label { get; set; }
     public string? Note { get; set; }
     public string? Icon { get; set; }
+    public List<string>? Icons { get; set; }
     public string? Group { get; set; }
+    public string? GroupIcon { get; set; }
+    /// <summary>The catalog model, the same in every agent.</summary>
+    public string? Ref { get; set; }
+    /// <summary>Costs its subscription nothing.</summary>
+    public bool Free { get; set; }
+    public double Rate { get; set; }
+    public double RateWas { get; set; }
+    /// <summary>The tokens the model takes, when known.</summary>
+    public int Context { get; set; }
+    /// <summary>On an effort field's default, the level the agent takes then.</summary>
+    public string? Takes { get; set; }
+    /// <summary>Who the agent asks for this model itself, magpie not in the
+    /// way ("Anthropic").</summary>
+    public string? Direct { get; set; }
+    public bool Via { get; set; }
+    /// <summary>Magpie serves it on the account the agent is signed in to
+    /// itself, so the picker folds these into one row.</summary>
+    public bool Same { get; set; }
+    /// <summary>The value of the option a dated id is another name of.</summary>
+    public string? Alias { get; set; }
+    /// <summary>The agent whose requests a fast pick sends it on.</summary>
+    public string? FastFor { get; set; }
+    public bool Fast { get; set; }
+    public bool UltraOk { get; set; }
+    public bool Ultra { get; set; }
 }
 
 public sealed class ModelCountJson
@@ -65,6 +147,130 @@ public sealed class ProfileJson
     public string Name { get; set; } = "";
     public string Summary { get; set; } = "";
     public bool InUse { get; set; }
+    /// <summary>What it holds, by agent, to be read before it is applied.</summary>
+    public List<ProfileGroupJson> Agents { get; set; } = [];
+    /// <summary>What it gives out from the library.</summary>
+    public ProfileLibraryJson? Library { get; set; }
+}
+
+public sealed class ProfileGroupJson
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Icon { get; set; }
+    public List<ProfileItemJson> Fields { get; set; } = [];
+    public List<string>? Servers { get; set; }
+    public List<string>? Skills { get; set; }
+    public bool Instructions { get; set; }
+    public ProfileModelsJson? Models { get; set; }
+}
+
+public sealed class ProfileItemJson
+{
+    public string Key { get; set; } = "";
+    public string Label { get; set; } = "";
+    public string Value { get; set; } = "";
+    public string? Follows { get; set; }
+    /// <summary>A value that looked like a key or a token: never shown.</summary>
+    public bool Hidden { get; set; }
+}
+
+public sealed class ProfileModelsJson
+{
+    public int Hidden { get; set; }
+    public bool Only { get; set; }
+    public int Picked { get; set; }
+}
+
+public sealed class ProfileLibraryJson
+{
+    public int Servers { get; set; }
+    public int Skills { get; set; }
+    public bool Instructions { get; set; }
+}
+
+/// <summary>The answer to POST /api/profile/{action}: the whole state, plus
+/// what applying one changed.</summary>
+public sealed class ProfileAnswerJson : StateJson
+{
+    public int Changed { get; set; }
+    public LibraryResultJson? Library { get; set; }
+}
+
+// ---- /api/agents/cli and /api/agents/install ----
+
+public sealed class CliAnswerJson
+{
+    public Dictionary<string, CliJson> Agents { get; set; } = [];
+    /// <summary>Some versions are still being asked for: ask again.</summary>
+    public bool Pending { get; set; }
+}
+
+/// <summary>agent.CLI: an agent's command-line program, and the newest one.</summary>
+public sealed class CliJson
+{
+    public string? Version { get; set; }
+    public string? Latest { get; set; }
+    /// <summary>What updates it: npm, bun, pnpm, brew, self; "" when magpie
+    /// can't tell.</summary>
+    public string? Via { get; set; }
+    public string? Command { get; set; }
+    public bool Update { get; set; }
+    /// <summary>The agent's desktop app, installed beside it.</summary>
+    public string? App { get; set; }
+    public bool Admin { get; set; }
+    public string? Path { get; set; }
+    /// <summary>Found in a folder magpie looks in that a terminal doesn't.</summary>
+    public bool OffPath { get; set; }
+}
+
+/// <summary>agent.Install: an agent not on this machine, and how to install it.</summary>
+public sealed class InstallJson
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Icon { get; set; }
+    public List<InstallCmdJson> Commands { get; set; } = [];
+    /// <summary>Its settings are here but its CLI isn't.</summary>
+    public bool Missing { get; set; }
+}
+
+public sealed class InstallCmdJson
+{
+    public string Via { get; set; } = "";
+    public string Command { get; set; } = "";
+    public string? Node { get; set; }
+    public string? Admin { get; set; }
+}
+
+// ---- /api/agent-models/{id} (agent_models.go) ----
+
+public sealed class AgentModelsJson
+{
+    public List<AgentModelJson> Models { get; set; } = [];
+    public bool Ordered { get; set; }
+    /// <summary>Shown only the models picked for it.</summary>
+    public bool Only { get; set; }
+    /// <summary>Its pickers offer models of its own beside magpie's.</summary>
+    public bool Own { get; set; }
+    public bool OwnHidden { get; set; }
+}
+
+public sealed class AgentModelJson
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    /// <summary>Its provider's name, or "Routing groups".</summary>
+    public string Group { get; set; } = "";
+    public string? Icon { get; set; }
+    public List<string>? Icons { get; set; }
+    public string? Logo { get; set; }
+    public int Context { get; set; }
+    public bool Hidden { get; set; }
+    /// <summary>The agent is set to it, so it can't be taken out.</summary>
+    public bool InUse { get; set; }
+    /// <summary>One of the agent's own, a ChatGPT account's.</summary>
+    public bool Own { get; set; }
 }
 
 public sealed class SettingsJson
@@ -74,6 +280,10 @@ public sealed class SettingsJson
     public int TextSize { get; set; }
     public string? UIFont { get; set; }
     public string? CodeFont { get; set; }
+    /// <summary>How the agents are listed, by agent id (settings.AgentOrder).</summary>
+    public List<string>? AgentOrder { get; set; }
+    public List<string>? AgentsHidden { get; set; }
+    public List<string>? AgentsShown { get; set; }
 }
 
 public sealed class RecoveredJson
@@ -81,6 +291,35 @@ public sealed class RecoveredJson
     public string File { get; set; } = "";
     public string Path { get; set; } = "";
     public string Why { get; set; } = "";
+}
+
+/// <summary>GET /api/agents/preview/{id}: what disconnecting would change in
+/// an agent's files, line by line (agent.FileChange).</summary>
+public sealed class PreviewJson
+{
+    public List<FileChangeJson>? Changes { get; set; }
+    /// <summary>What the preview couldn't read, when it couldn't.</summary>
+    public string? Error { get; set; }
+    /// <summary>Aside's plan, which an offline disconnect names.</summary>
+    public string? Revision { get; set; }
+}
+
+public sealed class FileChangeJson
+{
+    /// <summary>As the user knows it, ~ for home.</summary>
+    public string Path { get; set; } = "";
+    public bool Removed { get; set; }
+    public bool Created { get; set; }
+    public List<LineDiffJson>? Lines { get; set; }
+}
+
+/// <summary>One line a file changes: "-" taken out, "+" put in, "~" a line
+/// whose value goes back to another (Was is the line now).</summary>
+public sealed class LineDiffJson
+{
+    public string Op { get; set; } = "";
+    public string Text { get; set; } = "";
+    public string? Was { get; set; }
 }
 
 // ---- /api/providers (providers.go, providersJSON, providerJSON) ----
