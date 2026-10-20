@@ -40,8 +40,8 @@ wins.
 
 | Page | How |
 | --- | --- |
-| Agents | XAML (`Pages/AgentsPage`): the agents, their fields, and the app's own menu for a value |
-| Providers | XAML (`Pages/ProvidersPage`): the sources, their keys and sign-ins, each switched on or off in place |
+| Agents | XAML (`Pages/AgentsPage`): the agents as the page draws them — a compact row per agent in one card, the connect switch, the CLI's version and its update, the model list dialog, arranging and hiding, profiles, and the agents this computer lacks with their install commands |
+| Providers | XAML (`Pages/ProvidersPage`): the sources as the page draws them — a row per provider with its key or account, the editor on it (accounts, keys, models, routing, the advanced fields), and the add sheet with the presets, the subscriptions' sign-ins (a plugin's included) and the user's own |
 | Usage | XAML (`Pages/UsagePage`): the allowances each subscription and key has left, and a period's tokens, calls and cost by agent and model; its Requests tab lists the period's calls a page at a time, with the agents, providers, status and search as filters. The page's Sessions and Context tabs are not drawn here yet |
 | Sessions | XAML (`Pages/SessionsPage`): one agent's sessions by day, the picked one's facts and resume command, and magpie's trash |
 | Library | XAML (`Pages/LibraryPage`): the instructions and their sets, the MCP servers and the skills, each given to an agent or taken from it; editing text, adding a server and installing a skill stay the page's |
@@ -94,7 +94,9 @@ only kind of row that can carry children at the pane's foot.
 
 The tray icon says what the app does: a notification when the window closes
 that magpie keeps running in the tray, and one for a `magpie://import` link,
-which the Providers page has no import to answer yet.
+which the Providers page has no import to answer yet (a provider can be
+added by hand; a link's own payload is applied by the page's import, which
+is not drawn here).
 
 Open at login is the app's own Run value, `magpie-desktop`, pointing at this
 exe (`Autostart.cs`). It is not the backend's `magpie` value, which starts
@@ -124,7 +126,10 @@ magpie's own and is not translated here.
 
 ## What this prototype doesn't do yet
 
-- The panel's glide from the Wails app; a `magpie://import` link's provider,
-  which needs the Providers page's import drawn.
+- The panel's glide from the Wails app; a `magpie://import` link's payload.
+- The Providers page's import from other apps (the add sheet's Import button
+  says so), and a few of the editor's long-tail fields (a StepFun platform
+  sign-in, Volcengine and Tencent access keys per region, a Vertex
+  credentials file).
 - The release is still one `magpie-windows-<arch>.exe`; shipping two programs
   is its own change (magpie-releases, self-update, the site's downloads).
