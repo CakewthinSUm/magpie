@@ -21,7 +21,12 @@ public sealed class PageKit
     /// required member would stop that build (CS9035).</summary>
     public Func<Task> Refresh { get; init; } = () => Task.CompletedTask;
 
-    /// <summary>The one line a page shows what it is doing or what failed.</summary>
+    /// <summary>
+    /// The one line a page shows what it is doing or what failed. The page
+    /// under the status line is walked for translation once the work is done
+    /// (L.Walk): a page sets its words as it is drawn, so this is the one
+    /// place every page's text passes through after a draw.
+    /// </summary>
     public static async Task RunAsync(Func<Task> work, TextBlock status, ProgressRing? busy = null)
     {
         if (busy is not null) busy.IsActive = true;
@@ -38,7 +43,21 @@ public sealed class PageKit
         finally
         {
             if (busy is not null) busy.IsActive = false;
+            // the page this status line is on: its words are translated now,
+            // once the draw that set them is done
+            if (Root(status) is { } page) L.Walk(page);
         }
+    }
+
+    /// <summary>The Page an element is on, found up the visual tree: what
+    /// L.Walk is given, so a page's own code needn't translate each word.</summary>
+    private static Microsoft.UI.Xaml.Controls.Page? Root(DependencyObject? from)
+    {
+        for (var at = from; at is not null; at = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(at))
+        {
+            if (at is Microsoft.UI.Xaml.Controls.Page page) return page;
+        }
+        return null;
     }
 }
 
@@ -79,11 +98,87 @@ public sealed class SettingRow
 }
 
 /// <summary>
+/// The words the pages say, in the language Settings picked: the page's own
+/// translations (Strings, generated from i18n.js), looked up by the English
+/// text as the page writes it. A word the page doesn't translate is left
+/// English, as the page leaves it.
+/// </summary>
+public static class L
+{
+    /// <summary>The table for the language in force, or null for English.</summary>
+    private static Dictionary<string, string>? _table;
+    private static string _lang = "";
+
+    /// <summary>Sets the language the pages are drawn in (the settings'
+    /// lang, or "" for the system's, which the app resolves before this).</summary>
+    public static void Use(string? lang)
+    {
+        _lang = lang ?? "";
+        _table = Strings.For(_lang);
+    }
+
+    public static string T(string text) =>
+        _table is not null && _table.TryGetValue(text, out var translated) ? translated : text;
+
+    /// <summary>The language in force, as Settings names it.</summary>
+    public static string Lang => _lang;
+
+    /// <summary>
+    /// Translates every word already drawn under root, in place: the pages
+    /// set their text when they are built, some in XAML and some in code, and
+    /// a word the page translates is found by the English it was written as.
+    /// The pages call this after a draw, so a page's own code needn't wrap
+    /// every word in T.
+    /// </summary>
+    public static void Walk(DependencyObject root)
+    {
+        if (_table is null) return;
+        switch (root)
+        {
+            case TextBlock { Text: { Length: > 0 } text } block:
+                block.Text = T(text);
+                break;
+            case Button { Content: string content } button:
+                button.Content = T(content);
+                break;
+            // the choice rows are RadioButtons, which are not Buttons
+            case RadioButton { Content: string radio } option:
+                option.Content = T(radio);
+                break;
+            case MenuFlyoutItem { Text: { Length: > 0 } item } menuItem:
+                menuItem.Text = T(item);
+                break;
+            case NavigationViewItem { Content: string nav } item:
+                item.Content = T(nav);
+                break;
+            case NavigationViewItemHeader { Content: string header } head:
+                head.Content = T(header);
+                break;
+            case CheckBox { Content: string check } box:
+                box.Content = T(check);
+                break;
+            case InfoBar { Title: { Length: > 0 } title } bar:
+                bar.Title = T(title);
+                break;
+        }
+        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            Walk(Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(root, i));
+        }
+    }
+}
+
+/// <summary>
 /// The pieces the pages drawn here share beyond their own data: the icon
 /// names magpie's page serves, and the Settings page's rows.
 /// </summary>
 public static class PageKitUI
 {
+    /// <summary>A word in the language in force (L.T), for the pages' own
+    /// text: the same key the page's i18n.js has.</summary>
+    public static string T(string text) => L.T(text);
+
     /// <summary>The icons magpie's page keeps as PNG rather than SVG (app.js's
     /// pngIcons), so a vendor logo is asked for as the file it is.</summary>
     private static readonly HashSet<string> PngIcons = new(StringComparer.OrdinalIgnoreCase)
@@ -137,12 +232,12 @@ public static class PageKitUI
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var who = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
-        who.Children.Add(new TextBlock { Text = row.Title });
+        who.Children.Add(new TextBlock { Text = T(row.Title) });
         if (row.Description.Length > 0)
         {
             who.Children.Add(new TextBlock
             {
-                Text = row.Description,
+                Text = T(row.Description),
                 FontSize = 12,
                 Opacity = 0.7,
                 TextWrapping = TextWrapping.Wrap,
@@ -191,7 +286,7 @@ public static class PageKitUI
         {
             var button = new RadioButton
             {
-                Content = label,
+                Content = T(label),
                 GroupName = group,
                 IsChecked = value == picked,
                 MinWidth = 0,
@@ -221,14 +316,16 @@ public static class PageKitUI
         {
             // a picker that names an action ("Disable…") rather than the value
             // in force says its own label until one is picked
-            Content = buttonLabel ?? list.FirstOrDefault(v => v.Value == picked).Label ?? picked,
+            Content = T(buttonLabel ?? list.FirstOrDefault(v => v.Value == picked).Label ?? picked),
             Padding = new Thickness(12, 4, 12, 4),
             HorizontalAlignment = HorizontalAlignment.Right,
         };
         var menu = new MenuFlyout();
         foreach (var (value, label) in list)
         {
-            var item = new MenuFlyoutItem { Text = label, Tag = value };
+            // the menu's own items are not in the visual tree, so they are
+            // translated here rather than by L.Walk
+            var item = new MenuFlyoutItem { Text = T(label), Tag = value };
             if (value == picked) item.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
             item.Click += (_, _) =>
             {
@@ -245,7 +342,7 @@ public static class PageKitUI
     /// <summary>A heading over a group of rows, as Settings groups its parts.</summary>
     public static TextBlock Heading(string text) => new()
     {
-        Text = text,
+        Text = T(text),
         FontSize = 12,
         FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
         Opacity = 0.7,

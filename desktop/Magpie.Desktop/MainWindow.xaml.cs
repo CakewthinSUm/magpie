@@ -43,6 +43,9 @@ public sealed partial class MainWindow : Window
         // for its buttons, rather than a strip of its own above the page
         ApplyBackdrop();
         TitleBarTheme();
+        // the pane's own words, in the language Settings picked (L): the
+        // XAML has the English, which is the page's key for it
+        TranslatePane();
 
         // a view named on the command line (`Magpie.Desktop.exe settings`),
         // else the page the reader left
@@ -141,6 +144,20 @@ public sealed partial class MainWindow : Window
             return;
         }
         Pages.Navigate(page, view, new SuppressNavigationTransitionInfo());
+    }
+
+    /// <summary>The pane's own words in the language in force: each item's
+    /// text as XAML has it in English is its key in the page's translations.
+    /// The page under it is walked the same way once it is drawn.</summary>
+    private void TranslatePane() => L.Walk(Nav);
+
+    /// <summary>Draws the page it is on again, for a change every page says
+    /// (the language): the same view, read and drawn anew.</summary>
+    public void Redraw()
+    {
+        TranslatePane();
+        if (Pages.Content is IRefreshable drawn) _ = drawn.Kit.Refresh();
+        else if (Pages.Content is WebHostPage web) web.Open(web.View);
     }
 
     private void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)

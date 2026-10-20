@@ -91,6 +91,25 @@ user already opens at login keeps its own and the two never take each
 other's place. `magpie://` links register this exe as their handler
 (`Scheme.cs`), as the Wails app registered its own.
 
+## The words
+
+The pages say what the page says, in the language Settings picked. The
+translations are the page's own (`internal/gui/assets/i18n.js`), keyed by the
+English as the page writes it, so a word the page already translates is the
+app's translation too: `desktop/gen-strings.mjs` reads i18n.js and writes
+`Magpie.Desktop/Strings.cs`, and `L.T` looks a word up in it. A word the page
+has no key for goes in `desktop/strings-extra.json`, which the script merges
+after i18n.js.
+
+```sh
+node desktop/gen-strings.mjs   # after changing a word a page says
+```
+
+`L.Walk` translates a page's text once it is drawn, so a page's own code
+needn't wrap each word; a word the table doesn't know stays English, as the
+page leaves it. What magpie's API returns (a window's name, a reset time) is
+magpie's own and is not translated here.
+
 ## What this prototype doesn't do yet
 
 - The panel's glide from the Wails app; a `magpie://import` link's provider,

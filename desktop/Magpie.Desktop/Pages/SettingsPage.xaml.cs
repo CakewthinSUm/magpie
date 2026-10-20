@@ -170,7 +170,7 @@ public sealed partial class SettingsPage : Page, IRefreshable
             Title = "Language",
             Description = "The language of magpie's windows, its page and the menu bar.",
             Control = PageKitUI.Menu(LanguageChoices(), s.Lang is { Length: > 0 } lang ? lang : "system",
-                v => _ = SaveAsync(new { lang = v })),
+                v => _ = SaveLanguageAsync(v)),
         }));
         Body.Children.Add(PageKitUI.Setting(new SettingRow
         {
@@ -512,6 +512,35 @@ public sealed partial class SettingsPage : Page, IRefreshable
             Draw();
         }, Status, Busy);
         _busy = false;
+    }
+
+    /// <summary>
+    /// The language: saved as the page saves it, then read back through the
+    /// app (L), which every page's words are drawn from. The window is then
+    /// rebuilt on the page it is on, so every word it says is the new
+    /// language's, not only this page's.
+    /// </summary>
+    private async Task SaveLanguageAsync(string lang)
+    {
+        if (_busy) return;
+        await PageKit.RunAsync(async () =>
+        {
+            _busy = true;
+            _settings = await App.CurrentApp.Client.PostAsync<SettingsFullJson>("settings", SnapshotWith("lang", lang)) ?? _settings;
+            await App.UseLanguageAsync();
+            App.CurrentApp.ReloadWindow();
+            Draw();
+        }, Status, Busy);
+        _busy = false;
+    }
+
+    /// <summary>The snapshot with one field set, for a save that must carry
+    /// the rest as they are.</summary>
+    private Dictionary<string, object?> SnapshotWith(string key, object? value)
+    {
+        var body = Snapshot();
+        body[key] = value;
+        return body;
     }
 
     /// <summary>

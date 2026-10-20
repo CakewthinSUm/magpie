@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Magpie.Desktop.Backend;
+using Magpie.Desktop.Pages;
 using Magpie.Desktop.Tray;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
@@ -76,6 +77,11 @@ public partial class App : Application
             await _client.SignInAsync(_backend);
             _backend.Version = await _client.VersionAsync();
 
+            // the words the pages say, in the language Settings picked: the
+            // page's own translations (L, from i18n.js), read once here and
+            // again when the language changes
+            await UseLanguageAsync();
+
             // what magpie web's host has no window for: the app answers it
             _channel = new DesktopChannel
             {
@@ -133,6 +139,47 @@ public partial class App : Application
         }
         _main.Activate();
         if (!string.IsNullOrEmpty(view)) _main.Navigate(view);
+    }
+
+    /// <summary>
+    /// Draws the window's page again: what the language change needs, since
+    /// the words are set when a page is drawn. The window stays where it is
+    /// and on the view it was on.
+    /// </summary>
+    public void ReloadWindow() => _main?.Redraw();
+
+    /// <summary>
+    /// Sets the language the pages are drawn in, from Settings' lang: "" or
+    /// "system" follows Windows' own UI language, one magpie doesn't speak
+    /// falling back to English (as the page does).
+    /// </summary>
+    public static async Task UseLanguageAsync()
+    {
+        var lang = "";
+        try
+        {
+            var s = await CurrentApp.Client.GetAsync<Backend.SettingsFullJson>("settings");
+            lang = s?.Lang ?? "";
+        }
+        catch (Exception) { /* English stands */ }
+        if (lang.Length == 0 || lang == "system") lang = SystemLanguage();
+        L.Use(lang);
+        Log("language: " + (lang.Length > 0 ? lang : "en"));
+    }
+
+    /// <summary>Windows' own UI language as magpie names it, or "" for
+    /// English: the page knows zh, zh-TW, ja and de.</summary>
+    private static string SystemLanguage()
+    {
+        var tag = Windows.Globalization.ApplicationLanguages.Languages.FirstOrDefault() ?? "";
+        return tag.ToLowerInvariant() switch
+        {
+            var t when t.StartsWith("zh-tw") || t.StartsWith("zh-hk") || t.StartsWith("zh-hant") => "zh-TW",
+            var t when t.StartsWith("zh") => "zh",
+            var t when t.StartsWith("ja") => "ja",
+            var t when t.StartsWith("de") => "de",
+            _ => "",
+        };
     }
 
     /// <summary>
