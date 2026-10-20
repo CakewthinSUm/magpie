@@ -188,38 +188,174 @@ public static class PageKitUI
     };
 
     /// <summary>
-    /// A picture from the page's icon folder (/api/icons serves it): a
-    /// picture the user gave is kept as file:&lt;name&gt;, and a vendor's is
-    /// its name with .svg, or .png for the few kept as one. None when the
-    /// name says nothing magpie can show.
+    /// The address a picture is at, and whether it is an SVG. A vendor's own
+    /// is the page's static /icons/&lt;name&gt;.svg, or .png for the few
+    /// kept as one; a picture the user gave, and a plugin's, are magpie's
+    /// stored files, which /api/icons/&lt;file&gt; serves and only a
+    /// signed-in request may have. Null when the name says nothing magpie
+    /// can show.
     /// </summary>
-    public static Microsoft.UI.Xaml.Media.ImageSource? IconOf(string? icon)
+    private static (string Address, bool Svg)? IconAddress(string? icon)
     {
         if (string.IsNullOrEmpty(icon)) return null;
-        var app = App.CurrentApp;
-        if (app.Client.BaseUrl.Length == 0) return null;
-        string path;
-        string file;
-        if (icon.StartsWith("file:", StringComparison.Ordinal))
-        {
-            file = icon[5..];
-            path = "icons/" + Uri.EscapeDataString(file);
-        }
-        else if (icon.StartsWith("https://", StringComparison.Ordinal) || icon.StartsWith("data:", StringComparison.Ordinal))
+        if (icon.StartsWith("https://", StringComparison.Ordinal) || icon.StartsWith("data:", StringComparison.Ordinal))
         {
             // a plugin's own picture, not one of magpie's files
-            return new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(icon));
+            return (icon, icon.StartsWith("data:image/svg", StringComparison.OrdinalIgnoreCase));
         }
-        else
+        if (icon.StartsWith("file:", StringComparison.Ordinal))
         {
-            file = icon + (PngIcons.Contains(icon) ? ".png" : ".svg");
-            path = "icons/" + Uri.EscapeDataString(file);
+            // the picture the user gave their provider: magpie keeps it
+            var kept = icon[5..];
+            return ("api/icons/" + Uri.EscapeDataString(kept), kept.EndsWith(".svg", StringComparison.OrdinalIgnoreCase));
         }
-        var uri = new Uri(app.Client.BaseUrl + path);
-        // WinUI reads an SVG as one, a BitmapImage only as a bitmap
-        return file.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)
-            ? new Microsoft.UI.Xaml.Media.Imaging.SvgImageSource(uri)
-            : new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(uri);
+        // a vendor's mark, served beside the page itself
+        var name = icon.EndsWith(".svg") || icon.EndsWith(".png") ? icon : icon + (PngIcons.Contains(icon) ? ".png" : ".svg");
+        return ("icons/" + Uri.EscapeDataString(name), name.EndsWith(".svg", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// The picture when it is already read, for a draw that can't wait on a
+    /// read: none the first time, and the draw after the read has it
+    /// (LoadIconsAsync draws the page again once it has them). The bytes
+    /// come through the signed-in client, which a stored picture needs: an
+    /// image control loading the address itself carries no cookie, and
+    /// magpie's webGuard turns it away.
+    /// </summary>
+    public static Microsoft.UI.Xaml.Media.ImageSource? IconCached(string? icon) =>
+        IconAddress(icon) is { } at ? IconCache.Get(at.Address) : null;
+
+    /// <summary>Drops every picture read: a mark the page leaves to the text
+    /// was read in the old theme's ink, so a change of theme reads them
+    /// again as the page's masks are tinted anew.</summary>
+    public static void ForgetIcons() => IconCache.Forget();
+
+    /// <summary>The pictures read so far, by the address they came from:
+    /// every page's rows share them, so a hundred sessions read their
+    /// agent's mark once.</summary>
+    private static class IconCache
+    {
+        private static readonly Dictionary<string, Microsoft.UI.Xaml.Media.ImageSource?> Kept = [];
+        private static readonly Dictionary<string, Task<Microsoft.UI.Xaml.Media.ImageSource?>> Reading = [];
+
+        public static Microsoft.UI.Xaml.Media.ImageSource? Get(string address) =>
+            Kept.TryGetValue(address, out var found) ? found : null;
+
+        /// <summary>Everything read is let go, for a redraw in another ink.</summary>
+        public static void Forget()
+        {
+            lock (Kept)
+            {
+                Kept.Clear();
+                Reading.Clear();
+            }
+        }
+
+        public static Task<Microsoft.UI.Xaml.Media.ImageSource?> ReadAsync(string address, bool svg)
+        {
+            lock (Kept)
+            {
+                if (Kept.TryGetValue(address, out var found)) return Task.FromResult(found);
+                if (Reading.TryGetValue(address, out var running)) return running;
+                var read = LoadAsync(address, svg);
+                Reading[address] = read;
+                return read;
+            }
+        }
+
+        private static async Task<Microsoft.UI.Xaml.Media.ImageSource?> LoadAsync(string address, bool svg)
+        {
+            Microsoft.UI.Xaml.Media.ImageSource? made = null;
+            try
+            {
+                var app = App.CurrentApp;
+                if (app.Client.BaseUrl.Length > 0)
+                {
+                    var bytes = await app.Client.GetBytesAsync(address);
+                    if (bytes is { Length: > 0 }) made = await DecodeAsync(bytes, svg);
+                }
+            }
+            catch (Exception)
+            {
+                // a picture magpie has none of, or couldn't be read: no icon,
+                // as the page draws nothing for one it has no file of
+            }
+            lock (Kept)
+            {
+                Kept[address] = made;
+                Reading.Remove(address);
+            }
+            return made;
+        }
+
+        /// <summary>The bytes as a picture: WinUI's BitmapImage reads no SVG,
+        /// so a vendor's mark goes through an SvgImageSource and its
+        /// pictures through a bitmap.</summary>
+        private static async Task<Microsoft.UI.Xaml.Media.ImageSource?> DecodeAsync(byte[] bytes, bool svg)
+        {
+            if (svg)
+            {
+                bytes = InkSvg(bytes);
+                var mark = new Microsoft.UI.Xaml.Media.Imaging.SvgImageSource();
+                await mark.SetSourceAsync(StreamOf(bytes));
+                return mark;
+            }
+            var bitmap = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
+            await bitmap.SetSourceAsync(StreamOf(bytes));
+            return bitmap;
+        }
+
+        /// <summary>The bytes in a stream the image reads from.</summary>
+        private static Windows.Storage.Streams.InMemoryRandomAccessStream StreamOf(byte[] bytes)
+        {
+            var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+            using (var w = new Windows.Storage.Streams.DataWriter(stream.GetOutputStreamAt(0)))
+            {
+                w.WriteBytes(bytes);
+                w.StoreAsync().AsTask().GetAwaiter().GetResult();
+            }
+            stream.Seek(0);
+            return stream;
+        }
+
+        /// <summary>
+        /// A mark's own colour, where the page leaves it to the text: the
+        /// page draws these as CSS masks tinted with currentColor, which
+        /// follows the theme. An SvgImageSource has no page to take a colour
+        /// from, so currentColor is written in as the theme's ink — without
+        /// it the mark's paths have no paint and the picture is empty.
+        /// </summary>
+        private static byte[] InkSvg(byte[] bytes)
+        {
+            var text = System.Text.Encoding.UTF8.GetString(bytes);
+            if (!text.Contains("currentColor", StringComparison.Ordinal)) return bytes;
+            var ink = App.Dark ? "#ededf1" : "#1c1c21";
+            return System.Text.Encoding.UTF8.GetBytes(text.Replace("currentColor", ink, StringComparison.Ordinal));
+        }
+    }
+
+    /// <summary>
+    /// Reads the pictures a page is about to draw that aren't read yet, then
+    /// draws the page again: the first draw of a page shows its rows at
+    /// once, and their logos as the reads land. A read that failed is kept
+    /// as "no picture", never tried again on a redraw.
+    /// </summary>
+    public static async Task LoadIconsAsync(IEnumerable<string?> icons, Action redraw)
+    {
+        var wanted = icons.Where(i => !string.IsNullOrEmpty(i))
+            .Select(i => IconAddress(i))
+            .Where(at => at is not null)
+            .Select(at => at!.Value)
+            .DistinctBy(at => at.Address)
+            .Where(at => IconCache.Get(at.Address) is null)
+            .ToList();
+        if (wanted.Count == 0) return;
+        foreach (var at in wanted)
+        {
+            try { await IconCache.ReadAsync(at.Address, at.Svg); }
+            catch (Exception) { /* kept as no picture by the read */ }
+        }
+        redraw();
     }
 
     /// <summary>One setting's row, in a card: its name and what it does, the

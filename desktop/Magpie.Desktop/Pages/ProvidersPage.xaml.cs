@@ -1,7 +1,6 @@
 using Magpie.Desktop.Backend;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace Magpie.Desktop.Pages;
@@ -33,6 +32,9 @@ public sealed partial class ProvidersPage : Page, IRefreshable
         {
             _data = await App.CurrentApp.Client.GetAsync<ProvidersJson>("providers") ?? new ProvidersJson();
             Draw();
+            // each source's own logo, read through the signed-in client and
+            // drawn on the pass after it has it
+            await PageKitUI.LoadIconsAsync(_data.Providers.Select(p => p.Icon), Draw);
         }, Status, Busy);
     }
 
@@ -77,15 +79,11 @@ public sealed partial class ProvidersPage : Page, IRefreshable
         };
     }
 
-    internal static Microsoft.UI.Xaml.Media.ImageSource? IconOf(string icon)
-    {
-        if (string.IsNullOrEmpty(icon)) return null;
-        var app = App.CurrentApp;
-        if (app.Client.BaseUrl.Length == 0) return null;
-        // the page's own icons, served from the same address
-        var name = icon.EndsWith(".svg") || icon.EndsWith(".png") ? icon : icon + ".svg";
-        return new BitmapImage(new Uri(app.Client.BaseUrl + "icons/" + Uri.EscapeDataString(name)));
-    }
+    /// <summary>The source's own logo, as the page's icons folder has it: the
+    /// picture read already, or none until the read lands (LoadAsync's
+    /// LoadIconsAsync draws the page again when it has).</summary>
+    internal static Microsoft.UI.Xaml.Media.ImageSource? IconOf(string icon) =>
+        PageKitUI.IconCached(icon);
 
     private void Find_TextChanged(object sender, TextChangedEventArgs e) => Draw();
 

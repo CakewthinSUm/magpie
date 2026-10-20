@@ -73,6 +73,10 @@ public sealed partial class PluginsPage : Page, IRefreshable
             // the market is asked after the page is drawn: npm is waited for,
             // and what is installed shouldn't wait on it
             _ = LoadMarketAsync();
+            // each plugin's own picture, read through the signed-in client
+            // and drawn on the pass after it has them; a plugin with none of
+            // its own has the market's, which the read above waits for
+            await PageKitUI.LoadIconsAsync(_installed.Plugins.Select(p => IconOf(p)), () => { if (_part == "installed") Draw(); });
         }, Status, Busy);
     }
 
@@ -82,6 +86,11 @@ public sealed partial class PluginsPage : Page, IRefreshable
         {
             _market = await App.CurrentApp.Client.GetAsync<PluginMarketJson>("plugins/market");
             if (_part == "discover") Draw();
+            // the market's own pictures, read and drawn as the installed
+            // ones' are; an installed plugin with none of its own takes the
+            // market's, so the installed part is drawn again too
+            await PageKitUI.LoadIconsAsync(_market?.Listings.Select(l => l.Icon ?? l.Npm?.Icon) ?? [],
+                () => { if (_part is "discover" or "installed") Draw(); });
         }
         catch (Exception e)
         {
@@ -178,7 +187,7 @@ public sealed partial class PluginsPage : Page, IRefreshable
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var icon = PageKitUI.IconOf(IconOf(p));
+        var icon = PageKitUI.IconCached(IconOf(p));
         if (icon is not null)
         {
             grid.Children.Add(new Image
@@ -625,7 +634,7 @@ public sealed partial class PluginsPage : Page, IRefreshable
             action.Style = PrimaryStyle();
             action.Click += async (_, _) => await ActAsync("add", new { spec = l.Package });
         }
-        return CardWith(who, action, PageKitUI.IconOf(l.Icon ?? l.Npm?.Icon));
+        return CardWith(who, action, PageKitUI.IconCached(l.Icon ?? l.Npm?.Icon));
     }
 
     /// <summary>One of npm's search hits: the package, what npm says of it,

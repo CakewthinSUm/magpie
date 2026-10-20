@@ -154,7 +154,7 @@ public sealed partial class SettingsPage : Page, IRefreshable
             Control = PageKitUI.Choices(
                 [("system", "System"), ("light", "Light"), ("dark", "Dark")],
                 s.Theme is { Length: > 0 } theme ? theme : "system",
-                v => _ = SaveAsync(new { theme = v })),
+                v => _ = SaveThemeAsync(v)),
         }));
         Body.Children.Add(PageKitUI.Setting(new SettingRow
         {
@@ -529,6 +529,25 @@ public sealed partial class SettingsPage : Page, IRefreshable
             _settings = await App.CurrentApp.Client.PostAsync<SettingsFullJson>("settings", SnapshotWith("lang", lang)) ?? _settings;
             await App.UseLanguageAsync();
             App.CurrentApp.ReloadWindow();
+            Draw();
+        }, Status, Busy);
+        _busy = false;
+    }
+
+    /// <summary>
+    /// A save of the look: magpie keeps it, and the app wears it at once —
+    /// the caption, the material and every page's marks, which are pictures
+    /// of the ink they were read with.
+    /// </summary>
+    private async Task SaveThemeAsync(string theme)
+    {
+        if (_busy) return;
+        await PageKit.RunAsync(async () =>
+        {
+            _busy = true;
+            _settings = await App.CurrentApp.Client.PostAsync<SettingsFullJson>("settings", SnapshotWith("theme", theme)) ?? _settings;
+            // the look is the app's: it reads every page's marks again
+            App.UseTheme(theme);
             Draw();
         }, Status, Busy);
         _busy = false;

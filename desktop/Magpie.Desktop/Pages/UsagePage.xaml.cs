@@ -2,7 +2,6 @@ using Magpie.Desktop.Backend;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace Magpie.Desktop.Pages;
@@ -27,6 +26,9 @@ public sealed partial class UsagePage : Page, IRefreshable
     /// (usage.Period, internal/usage): today until another is picked.</summary>
     private string _period = "today";
     private bool _settingPeriod;
+    /// <summary>The allowances last drawn, so a redraw of the page after its
+    /// pictures are read draws the same cards.</summary>
+    private List<QuotaJson> _quotas = [];
 
     public UsagePage()
     {
@@ -73,6 +75,14 @@ public sealed partial class UsagePage : Page, IRefreshable
             DrawUsage(usage);
             try { DrawQuotas(await quotas); }
             catch (Exception e) { why = e.Message; }
+            // each card's and row's own logo, read through the signed-in
+            // client and drawn on the pass after it has them
+            if (period == _period)
+            {
+                await PageKitUI.LoadIconsAsync(
+                    _quotas.Select(q => q.Icon).Concat(usage.Agents.Select(g => g.Icon)).Concat(usage.Models.Select(g => g.Icon)),
+                    () => { DrawUsage(usage); DrawQuotas(_quotas); });
+            }
         }, Status, Busy);
 
         if (why is not null)
@@ -99,6 +109,7 @@ public sealed partial class UsagePage : Page, IRefreshable
     {
         AllowancesError.IsOpen = false;
         var cards = (quotas ?? []).Select(CardOf).ToList();
+        _quotas = quotas ?? [];
         Quotas.ItemsSource = cards;
         AllowancesEmpty.Visibility = cards.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -281,20 +292,10 @@ public sealed partial class UsagePage : Page, IRefreshable
     /// dollars past a hundred, cents past one, thousandths under it.</summary>
     private static string Money(double c) => "$" + (c >= 100 ? c.ToString("0") : c >= 1 ? c.ToString("0.00") : c.ToString("0.000"));
 
-    /// <summary>The provider's own logo, from the page's icons, addressed as
-    /// the Providers page addresses them. They are mostly SVGs, which WinUI
-    /// draws with SvgImageSource and not with BitmapImage. The image's own
-    /// request carries no cookie, so the run's key goes in the link, as the
-    /// page's address carries it; webGuard trades it for one.</summary>
-    private static ImageSource? IconOf(string? icon)
-    {
-        if (string.IsNullOrEmpty(icon)) return null;
-        var app = App.CurrentApp;
-        if (app.Client.BaseUrl.Length == 0) return null;
-        var name = icon.EndsWith(".svg") || icon.EndsWith(".png") ? icon : icon + ".svg";
-        var uri = new Uri(app.Client.BaseUrl + "icons/" + Uri.EscapeDataString(name) + "?k=" + Uri.EscapeDataString(app.Backend.Key));
-        return name.EndsWith(".svg") ? new SvgImageSource(uri) : new BitmapImage(uri);
-    }
+    /// <summary>The provider's own logo, from the page's icons folder: the
+    /// picture read already, or none until the read lands (LoadAsync draws
+    /// the page again when it has).</summary>
+    private static ImageSource? IconOf(string? icon) => PageKitUI.IconCached(icon);
 
     private static Visibility Shown(bool on) => on ? Visibility.Visible : Visibility.Collapsed;
 

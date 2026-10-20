@@ -41,8 +41,7 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Standard;
         // the caption follows the app's light or dark, and the system's accent
         // for its buttons, rather than a strip of its own above the page
-        ApplyBackdrop();
-        TitleBarTheme();
+        ApplyLook();
         // the pane's own words, in the language Settings picked (L): the
         // XAML has the English, which is the page's key for it
         TranslatePane();
@@ -64,7 +63,8 @@ public sealed partial class MainWindow : Window
     private void TitleBarTheme()
     {
         var bar = AppWindow.TitleBar;
-        var dark = Application.Current.RequestedTheme == ApplicationTheme.Dark;
+        // the root's theme, else the system's: what the page beside it draws in
+        var dark = (Content as FrameworkElement)?.ActualTheme == ElementTheme.Dark;
         var ink = dark ? Colors.White : Colors.Black;
         bar.ButtonBackgroundColor = Colors.Transparent;
         bar.ButtonInactiveBackgroundColor = Colors.Transparent;
@@ -76,6 +76,21 @@ public sealed partial class MainWindow : Window
         var r = ink.R; var g = ink.G; var b = ink.B;
         bar.ButtonHoverBackgroundColor = Color.FromArgb(dark ? (byte)24 : (byte)16, r, g, b);
         bar.ButtonPressedBackgroundColor = Color.FromArgb(dark ? (byte)36 : (byte)24, r, g, b);
+    }
+
+    /// <summary>
+    /// The caption's ink and the window's material, for the theme in force:
+    /// the app's own when Settings picked one, else Windows'. Applied at
+    /// start, and again when Settings changes it — with the root's own theme,
+    /// which is what a page drawn after it follows.
+    /// </summary>
+    public void ApplyLook(ElementTheme? theme = null)
+    {
+        // none is the look App holds, for a window made after Settings named one
+        var wanted = theme ?? (App.Dark ? ElementTheme.Dark : ElementTheme.Default);
+        if (Content is FrameworkElement root && root.RequestedTheme != wanted) root.RequestedTheme = wanted;
+        ApplyBackdrop();
+        TitleBarTheme();
     }
 
     /// <summary>

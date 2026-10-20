@@ -2,7 +2,6 @@ using Magpie.Desktop.Backend;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace Magpie.Desktop.Pages;
 
@@ -34,6 +33,9 @@ public sealed partial class AgentsPage : Page, IRefreshable
             var state = await App.CurrentApp.Client.GetAsync<StateJson>("state");
             if (state is null) return;
             Draw(state);
+            // each agent's own logo, read through the signed-in client and
+            // drawn on the pass after it has it
+            await PageKitUI.LoadIconsAsync(state.Agents.Select(a => a.Icon), () => Draw(state));
         }
         catch (MagpieException e)
         {
@@ -96,15 +98,10 @@ public sealed partial class AgentsPage : Page, IRefreshable
         return string.Join(" · ", parts);
     }
 
-    /// <summary>The provider's or agent's own logo, from the page's icons
-    /// (/api/icons serves them); none when magpie has none.</summary>
-    private static ImageSource? IconOf(string icon)
-    {
-        if (string.IsNullOrEmpty(icon)) return null;
-        var app = App.CurrentApp;
-        if (app.Client.BaseUrl.Length == 0) return null;
-        return new BitmapImage(new Uri(app.Client.BaseUrl + "icons/" + Uri.EscapeDataString(icon) + ".svg"));
-    }
+    /// <summary>The agent's own logo, from the page's icons folder: the
+    /// picture read already, or none until the read lands (LoadAsync draws
+    /// the page again when it has).</summary>
+    private static ImageSource? IconOf(string icon) => PageKitUI.IconCached(icon);
 
     private async void Field_Click(object sender, RoutedEventArgs e)
     {

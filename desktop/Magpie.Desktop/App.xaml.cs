@@ -151,21 +151,57 @@ public partial class App : Application
     /// <summary>
     /// Sets the language the pages are drawn in, from Settings' lang: "" or
     /// "system" follows Windows' own UI language, one magpie doesn't speak
-    /// falling back to English (as the page does).
+    /// falling back to English (as the page does). The look is read here too,
+    /// before any window is drawn: a theme is every page's, not a word one
+    /// says.
     /// </summary>
     public static async Task UseLanguageAsync()
     {
         var lang = "";
+        var theme = "";
         try
         {
             var s = await CurrentApp.Client.GetAsync<Backend.SettingsFullJson>("settings");
             lang = s?.Lang ?? "";
+            theme = s?.Theme ?? "";
         }
-        catch (Exception) { /* English stands */ }
+        catch (Exception) { /* English stands, and the system's look */ }
         if (lang.Length == 0 || lang == "system") lang = SystemLanguage();
+        // the words first: UseTheme redraws a window already open, and a
+        // window redrawn before L has the language says its pane in English
         L.Use(lang);
+        UseTheme(theme);
         Log("language: " + (lang.Length > 0 ? lang : "en"));
     }
+
+    /// <summary>
+    /// Sets the look the pages are drawn in, from Settings' theme: "light" or
+    /// "dark" is the app's own, and "" or "system" follows Windows' as every
+    /// page's ThemeResource does. It is the window's root that carries it
+    /// (Application.RequestedTheme is refused once the app has started, and
+    /// a window made then cannot follow it). A mark the page leaves to the
+    /// text is tinted with the theme's ink, so a change reads them again.
+    /// </summary>
+    public static void UseTheme(string theme)
+    {
+        var wanted = theme == "light" ? ElementTheme.Light : theme == "dark" ? ElementTheme.Dark : ElementTheme.Default;
+        if (wanted == _theme) return;
+        _theme = wanted;
+        // a mark the page leaves to the text was read in the old theme's ink,
+        // so every picture is let go and the page reads them in the new one
+        PageKitUI.ForgetIcons();
+        if (CurrentApp._main is { } main) main.ApplyLook(wanted);
+        CurrentApp.ReloadWindow();
+        Log("theme: " + (theme.Length > 0 ? theme : "system"));
+    }
+
+    /// <summary>The look in force, for a window made after Settings named
+    /// one.</summary>
+    private static ElementTheme _theme = ElementTheme.Default;
+
+    /// <summary>Whether the pages are drawn dark: what a mark the page leaves
+    /// to the text is tinted with.</summary>
+    public static bool Dark => _theme == ElementTheme.Dark;
 
     /// <summary>Windows' own UI language as magpie names it, or "" for
     /// English: the page knows zh, zh-TW, ja and de.</summary>
