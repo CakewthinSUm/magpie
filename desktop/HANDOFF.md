@@ -64,9 +64,18 @@ Every page calls `LoadIconsAsync` from its own `LoadAsync`; grep for it to
 find the ones that don't. Plugins asks the market first, because an installed
 plugin with no picture of its own takes the market's.
 
-**Not the bug:** a name magpie has no file for (`intern-ai.org.cn`,
-`generic`) draws an empty slot, exactly as the page does. `MainWindow.xaml`
-uses `FontIcon` glyphs in the pane, which is correct.
+**The fallback matters.** A name magpie has no file for draws the page's
+plain mark, as `app.js`'s `icon` does: `"generic"` is that mark, and a mark
+whose picture fails to load replaces itself with it. It is a path the page
+draws (`GenericMark`, from `app.js`'s `svg(...)`), not a file — there is no
+`icons/generic.svg`, which is why asking for one was a 404. `LoadIconsAsync`
+reads it alongside the rest, so it is there for the draw that shows it.
+Without it `intern-ai.org.cn` and every custom provider drew nothing.
+
+A row with no icon name at all (`icon` null or empty) still draws nothing:
+the page gives it a blank slot.
+
+`MainWindow.xaml` uses `FontIcon` glyphs in the pane, which is correct.
 
 ## What is left, in the order the user cares about
 

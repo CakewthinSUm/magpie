@@ -188,16 +188,27 @@ public static class PageKitUI
     };
 
     /// <summary>
+    /// The page's plain mark for a provider with no logo of its own
+    /// ("generic" in app.js's icon), drawn as a path rather than read as a
+    /// file: magpie has no icons/generic.svg, and the page draws this shape
+    /// instead.
+    /// </summary>
+    private const string GenericMark =
+        "M8 2.2 13.2 5.1v5.8L8 13.8 2.8 10.9V5.1Z M8 8v5.8 M2.8 5.1 8 8l5.2-2.9";
+
+    /// <summary>
     /// The address a picture is at, and whether it is an SVG. A vendor's own
     /// is the page's static /icons/&lt;name&gt;.svg, or .png for the few
     /// kept as one; a picture the user gave, and a plugin's, are magpie's
     /// stored files, which /api/icons/&lt;file&gt; serves and only a
-    /// signed-in request may have. Null when the name says nothing magpie
+    /// signed-in request may have. "generic" is the page's own plain mark,
+    /// drawn here rather than read. Null when the name says nothing magpie
     /// can show.
     /// </summary>
     private static (string Address, bool Svg)? IconAddress(string? icon)
     {
         if (string.IsNullOrEmpty(icon)) return null;
+        if (icon == "generic") return (GenericAddress, true);
         if (icon.StartsWith("https://", StringComparison.Ordinal) || icon.StartsWith("data:", StringComparison.Ordinal))
         {
             // a plugin's own picture, not one of magpie's files
@@ -214,6 +225,10 @@ public static class PageKitUI
         return ("icons/" + Uri.EscapeDataString(name), name.EndsWith(".svg", StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>Where the plain mark sits in the cache: not an address
+    /// magpie serves, so it never meets a file of that name.</summary>
+    private const string GenericAddress = "about:generic";
+
     /// <summary>
     /// The picture when it is already read, for a draw that can't wait on a
     /// read: none the first time, and the draw after the read has it
@@ -221,9 +236,17 @@ public static class PageKitUI
     /// come through the signed-in client, which a stored picture needs: an
     /// image control loading the address itself carries no cookie, and
     /// magpie's webGuard turns it away.
+    ///
+    /// A mark magpie has no file of falls back to the page's plain one, as
+    /// app.js's icon does: a name the page draws as a mask replaces itself
+    /// with "generic" when the picture fails to load.
     /// </summary>
-    public static Microsoft.UI.Xaml.Media.ImageSource? IconCached(string? icon) =>
-        IconAddress(icon) is { } at ? IconCache.Get(at.Address) : null;
+    public static Microsoft.UI.Xaml.Media.ImageSource? IconCached(string? icon)
+    {
+        if (string.IsNullOrEmpty(icon)) return null;
+        if (IconAddress(icon) is not { } at) return IconCache.Get(GenericAddress);
+        return IconCache.Get(at.Address) ?? (at.Address == GenericAddress ? null : IconCache.Get(GenericAddress));
+    }
 
     /// <summary>Drops every picture read: a mark the page leaves to the text
     /// was read in the old theme's ink, so a change of theme reads them
@@ -269,7 +292,12 @@ public static class PageKitUI
             try
             {
                 var app = App.CurrentApp;
-                if (app.Client.BaseUrl.Length > 0)
+                if (address == GenericAddress)
+                {
+                    // the page's plain mark: a shape, not a file
+                    made = await DecodeAsync(MarkSvg(), true);
+                }
+                else if (app.Client.BaseUrl.Length > 0)
                 {
                     var bytes = await app.Client.GetBytesAsync(address);
                     if (bytes is { Length: > 0 }) made = await DecodeAsync(bytes, svg);
@@ -318,6 +346,11 @@ public static class PageKitUI
             return stream;
         }
 
+        /// <summary>The page's plain mark as the page draws it (app.js's
+        /// svg()): a 16-unit box, a path stroked in the text's colour.</summary>
+        private static byte[] MarkSvg() => System.Text.Encoding.UTF8.GetBytes(
+            $"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16"><path d="{GenericMark}" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>""");
+
         /// <summary>
         /// A mark's own colour, where the page leaves it to the text: the
         /// page draws these as CSS masks tinted with currentColor, which
@@ -347,8 +380,11 @@ public static class PageKitUI
             .Where(at => at is not null)
             .Select(at => at!.Value)
             .DistinctBy(at => at.Address)
-            .Where(at => IconCache.Get(at.Address) is null)
             .ToList();
+        // the plain mark a name with no file of its own falls back to, read
+        // before the draw that would show it
+        if (wanted.Any(at => at.Address != GenericAddress)) wanted.Add((GenericAddress, true));
+        wanted = wanted.Where(at => IconCache.Get(at.Address) is null).ToList();
         if (wanted.Count == 0) return;
         foreach (var at in wanted)
         {
