@@ -426,11 +426,16 @@ public sealed partial class AgentsPage : Page, IRefreshable
 
     /// <summary>Whether an element is a button or inside one, so a click on it
     /// is the button's, not the row's.</summary>
-    private static bool InButton(DependencyObject? d)
+    private static bool InButton(DependencyObject? d) => InsideControl(d);
+
+    /// <summary>Whether an element is a control or inside one, so a click on
+    /// it is the control's, not the row's. Shared with the Providers page's
+    /// rows, which read it the same way.</summary>
+    internal static bool InsideControl(DependencyObject? d)
     {
         for (var at = d; at is not null; at = VisualTreeHelper.GetParent(at))
         {
-            if (at is Button or ToggleSwitch or CheckBox or HyperlinkButton) return true;
+            if (at is Button or ToggleSwitch or CheckBox or HyperlinkButton or TextBox) return true;
         }
         return false;
     }

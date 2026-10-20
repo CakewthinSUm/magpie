@@ -101,25 +101,38 @@ public sealed class MagpieClient : IDisposable
         var body = "";
         try { body = (await resp.Content.ReadAsStringAsync().ConfigureAwait(false)).Trim(); }
         catch (Exception) { /* the reason is the status, then */ }
-        var reason = Reason(body);
-        throw new MagpieException(path, (int)resp.StatusCode,
-            reason.Length > 0 ? reason : $"{(int)resp.StatusCode} {resp.ReasonPhrase}");
+        var e = new MagpieException(path, (int)resp.StatusCode, "");
+        var reason = Reason(body, e);
+        e = new MagpieException(path, e.Status, reason.Length > 0 ? reason : $"{(int)resp.StatusCode} {resp.ReasonPhrase}")
+        {
+            Code = e.Code,
+            Agent = e.Agent,
+        };
+        throw e;
     }
 
     /// <summary>The reason in an answer's body: the <c>error</c> of
     /// magpie's <c>{"error":"…"}</c>, or the body as it is when it is no
-    /// such JSON (a proxy's HTML page, say).</summary>
-    private static string Reason(string body)
+    /// such JSON (a proxy's HTML page, say). The reason a refused change
+    /// carries a code or an agent id by (all_hidden, no_models) is kept on
+    /// the exception, as the page reads them off its errors.</summary>
+    private static string Reason(string body, MagpieException into)
     {
         if (body.Length == 0 || body[0] != '{') return body;
         try
         {
             using var doc = JsonDocument.Parse(body);
-            if (doc.RootElement.ValueKind == JsonValueKind.Object &&
-                doc.RootElement.TryGetProperty("error", out var err) &&
-                err.ValueKind == JsonValueKind.String)
+            var root = doc.RootElement;
+            if (root.ValueKind == JsonValueKind.Object)
             {
-                return err.GetString() ?? "";
+                if (root.TryGetProperty("code", out var code) && code.ValueKind == JsonValueKind.String)
+                    into.Code = code.GetString();
+                if (root.TryGetProperty("agent", out var agent) && agent.ValueKind == JsonValueKind.String)
+                    into.Agent = agent.GetString();
+                if (root.TryGetProperty("error", out var err) && err.ValueKind == JsonValueKind.String)
+                {
+                    return err.GetString() ?? "";
+                }
             }
         }
         catch (JsonException) { /* not the page's JSON: the body stands */ }
@@ -134,6 +147,11 @@ public sealed class MagpieException(string path, int status, string message)
 {
     public string Path { get; } = path;
     public int Status { get; } = status;
+    /// <summary>The machine's word for why it was refused (all_hidden,
+    /// no_models, needs_admin), when the body names one.</summary>
+    public string? Code { get; internal set; }
+    /// <summary>The agent the refusal is about, when it names one.</summary>
+    public string? Agent { get; internal set; }
 }
 
 /// <summary>The JSON the page reads, with the names it reads it by.</summary>

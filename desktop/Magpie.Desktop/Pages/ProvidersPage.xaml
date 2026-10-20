@@ -5,16 +5,25 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Magpie.Desktop.Pages">
 
-    <Grid Padding="32,24,32,0" RowSpacing="16">
+    <!-- The model sources on this computer, drawn as magpie's own page draws
+         them: one row per provider, its key or account, the agents on it and
+         the switch that puts it in or out of use; a row opens the editor
+         drawn beside it, and Add a provider opens the sheet the presets,
+         subscriptions and sign-ins come from. -->
+    <Grid RowSpacing="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Spacing="4">
-            <TextBlock Text="Providers" Style="{ThemeResource TitleTextBlockStyle}" />
+        <StackPanel Grid.Row="0" Padding="32,24,32,0" Spacing="4">
+            <Grid>
+                <TextBlock Text="Providers" Style="{ThemeResource TitleTextBlockStyle}" />
+                <Button x:Name="Add" Content="Add provider" Click="Add_Click"
+                        HorizontalAlignment="Right" VerticalAlignment="Top" />
+            </Grid>
             <StackPanel Orientation="Horizontal" Spacing="12">
                 <ProgressRing x:Name="Busy" IsActive="False" Width="16" Height="16" />
                 <TextBlock x:Name="Status" FontSize="12" VerticalAlignment="Center"
@@ -23,66 +32,23 @@
             </StackPanel>
         </StackPanel>
 
-        <Grid Grid.Row="1" MaxWidth="420" HorizontalAlignment="Left">
-            <TextBox x:Name="Find" PlaceholderText="Find a provider" TextChanged="Find_TextChanged"
-                     Padding="32,0,8,0" />
-            <FontIcon Glyph="&#xE721;" FontSize="14" Margin="10,0,0,0"
-                      VerticalAlignment="Center" HorizontalAlignment="Left"
-                      IsHitTestVisible="False" Opacity="0.6" />
-        </Grid>
+        <!-- the page's own banners: a providers file that can't be read, and
+             a deprecated subscription still to move onto its plugin -->
+        <StackPanel x:Name="Banners" Grid.Row="1" Padding="32,0,32,0" Spacing="8" />
 
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-            <StackPanel Spacing="8">
-                <ItemsControl x:Name="List">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="local:Row">
-                            <Border Margin="0,0,0,4" Padding="16,12" CornerRadius="8"
-                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                    BorderThickness="1">
-                                <Grid ColumnSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Image Width="20" Height="20" VerticalAlignment="Center"
-                                           Source="{x:Bind Icon}" />
-                                    <StackPanel Grid.Column="1" Spacing="2">
-                                        <TextBlock Text="{x:Bind Title}" FontSize="14" FontWeight="SemiBold" />
-                                        <TextBlock Text="{x:Bind Line}" FontSize="12" Opacity="0.7"
-                                                   TextWrapping="Wrap" />
-                                    </StackPanel>
-                                    <ToggleSwitch Grid.Column="2" IsOn="{x:Bind On}"
-                                                  OnContent="" OffContent="" MinWidth="0"
-                                                  Toggled="Switch_Toggled" Tag="{x:Bind Tag}" />
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <Expander x:Name="OffFold" Header="Turned off" IsExpanded="False" Margin="0,8,0,0">
-                    <ItemsControl x:Name="OffList">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="local:Row">
-                                <Grid Padding="8,6" ColumnSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Image Width="18" Height="18" Source="{x:Bind Icon}" />
-                                    <TextBlock Grid.Column="1" Text="{x:Bind Title}" VerticalAlignment="Center" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </Expander>
-            </StackPanel>
-        </ScrollViewer>
-
-        <Grid Grid.Row="3" Padding="0,12,0,20">
-            <Button x:Name="Add" Content="Add provider" Click="Add_Click" />
+        <!-- the search and the list, with the editor drawn beside them while
+             one is open -->
+        <Grid Grid.Row="2" Padding="32,0,32,0" RowSpacing="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <TextBox x:Name="Find" PlaceholderText="Find a provider" MaxWidth="420"
+                     HorizontalAlignment="Left" TextChanged="Find_TextChanged" />
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="Body" Spacing="8" Padding="0,0,0,24" />
+            </ScrollViewer>
         </Grid>
     </Grid>
 </Page>

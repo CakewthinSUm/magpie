@@ -335,8 +335,24 @@ public sealed class ProvidersJson
     public List<PluginSubJson> Plugins { get; set; } = [];
     public List<string>? OnPlugins { get; set; }
     public List<string>? Movable { get; set; }
+    /// <summary>The plugin each deprecated built-in goes to, by its id.</summary>
+    public Dictionary<string, string>? MovesTo { get; set; }
+    /// <summary>Retired built-ins whose accounts haven't moved to their
+    /// plugins yet, served by nothing until they do.</summary>
+    public List<MoveCandidateJson>? Unmoved { get; set; }
     public string? FileError { get; set; }
     public bool Fetching { get; set; }
+}
+
+/// <summary>provider.MoveCandidate: a deprecated built-in's accounts, which
+/// its plugin runs.</summary>
+public sealed class MoveCandidateJson
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Package { get; set; } = "";
+    public int Accounts { get; set; }
+    public string? Error { get; set; }
 }
 
 public sealed class ProviderJson
@@ -350,6 +366,11 @@ public sealed class ProviderJson
     public string Responses { get; set; } = "";
     public string Anthropic { get; set; } = "";
     public string? Gemini { get; set; }
+    /// <summary>The decision API's base, a routing group's classifier.</summary>
+    public string? Decide { get; set; }
+    /// <summary>The API the user gave its Base URL as ("chat", "responses",
+    /// "anthropic", "gemini", "decide").</summary>
+    public string? BaseApi { get; set; }
     public string Catalog { get; set; } = "";
     public string Website { get; set; } = "";
     public string KeysUrl { get; set; } = "";
@@ -358,6 +379,9 @@ public sealed class ProviderJson
     public bool Ready { get; set; }
     public List<ModelJson> Models { get; set; } = [];
     public int Exposed { get; set; }
+    /// <summary>How many of its models draw images.</summary>
+    public int Draws { get; set; }
+    public List<string>? DrawIds { get; set; }
     public bool NoModels { get; set; }
     public bool Unlisted { get; set; }
     public List<ProviderAgent> Agents { get; set; } = [];
@@ -367,9 +391,124 @@ public sealed class ProviderJson
     public List<string> Fallback { get; set; } = [];
     public string Routing { get; set; } = "";
     public string Affinity { get; set; } = "";
+    public bool Sink { get; set; }
+    public bool KeepLogin { get; set; }
+    public string? KeepLoginAs { get; set; }
+    public bool SwitchOnly { get; set; }
+    public bool Sponsored { get; set; }
     public DateTimeOffset? Fetched { get; set; }
     public string? ListError { get; set; }
     public MoveJson? Move { get; set; }
+    // what its editor sets beside them, carried whole so a save never drops
+    // one it doesn't show. MaxConcurrency is a number or null (null follows
+    // what its plugin says); the rest are numbers the API omits when 0.
+    public int? MaxConcurrency { get; set; }
+    public int QueueLimit { get; set; }
+    public int QueueWait { get; set; }
+    public int MaxRpm { get; set; }
+    public double PriceRate { get; set; }
+    public Dictionary<string, int>? Contexts { get; set; }
+    public Dictionary<string, int>? Outputs { get; set; }
+    public Dictionary<string, int>? Compacts { get; set; }
+    public string Proxy { get; set; } = "";
+    public Dictionary<string, string>? Headers { get; set; }
+    public Dictionary<string, string>? AccountProxies { get; set; }
+    public Dictionary<string, string>? AccountNames { get; set; }
+    public Dictionary<string, int>? AccountConcurrency { get; set; }
+    public Dictionary<string, List<string>>? AccountModels { get; set; }
+    public bool PinUpstream { get; set; }
+    public bool Unredacted { get; set; }
+    public bool InsecureTls { get; set; }
+    public bool TakesInsecureTls { get; set; }
+    public bool NativeCompaction { get; set; }
+    public bool CarriesCompaction { get; set; }
+    public bool PassUserAgent { get; set; }
+    public bool OwnClient { get; set; }
+    public string AuthHeader { get; set; } = "";
+    public bool BothAuth { get; set; }
+    public string? BalanceUrl { get; set; }
+    public string? BalancePath { get; set; }
+    public string? BalanceMethod { get; set; }
+    public string? ModelsUrl { get; set; }
+    /// <summary>An account-wide balance token: whether the vendor takes one,
+    /// and whether one is saved; never the token itself.</summary>
+    public BalanceTokenJson? BalanceToken { get; set; }
+    public string? Catalog_ { get; set; }
+    public string? BalanceFix { get; set; }
+    public string? ModelTest { get; set; }
+    public Dictionary<string, string>? TestsAs { get; set; }
+    public bool DecideTest { get; set; }
+    public bool MarksKinds { get; set; }
+    public bool Cline { get; set; }
+    public bool Vertex { get; set; }
+    public VertexJson? VertexInfo { get; set; }
+    public ZhipuTeamJson? ZhipuTeam { get; set; }
+    public AccessKeyJson? AccessKey { get; set; }
+    public string? Endpoint { get; set; }
+    public List<string>? Speaks { get; set; }
+    public string? AnonKey { get; set; }
+    /// <summary>The keys each key or account of it serves alone, by its name
+    /// in lower case or its key's id.</summary>
+    public Dictionary<string, List<string>>? AccountModels_ { get; set; }
+    /// <summary>Where a model of it is in a routing group, by model id.</summary>
+    public Dictionary<string, List<string>>? Groups { get; set; }
+    /// <summary>Its key list with each one on or off, for the editor.</summary>
+    public List<string>? Chosen { get; set; }
+    /// <summary>The APIs a model can be asked on, the model ids by key.</summary>
+    public Dictionary<string, ModelPrefJson>? ModelPrefs { get; set; }
+}
+
+public sealed class BalanceTokenJson
+{
+    public bool Takes { get; set; }
+    public bool Set { get; set; }
+}
+
+public sealed class VertexJson
+{
+    public string? Project { get; set; }
+    public string? Location { get; set; }
+    public string? Impersonate { get; set; }
+    public string? Credentials { get; set; }
+}
+
+public sealed class ZhipuTeamJson
+{
+    public string? Org { get; set; }
+    public string? Project { get; set; }
+}
+
+/// <summary>A Volcengine access key or a Tencent Cloud SecretId: whose, the
+/// ID, and whether a Secret is saved; never the Secret itself.</summary>
+public sealed class AccessKeyJson
+{
+    public string Vendor { get; set; } = "";
+    public string Id { get; set; } = "";
+    public bool SecretSet { get; set; }
+}
+
+/// <summary>The names, levels, images and API a model is asked on, as the
+/// editor's Names & levels sets them (provider.ModelPref).</summary>
+public sealed class ModelPrefJson
+{
+    public string? Name { get; set; }
+    public List<string>? Efforts { get; set; }
+    public bool? Reasonless { get; set; }
+    public bool? Images { get; set; }
+    public string? Api { get; set; }
+    public string? Same { get; set; }
+    public PriceJson? Price { get; set; }
+    public string? Kind { get; set; }
+}
+
+/// <summary>catalog.Price: what a model costs, USD per million tokens.</summary>
+public sealed class PriceJson
+{
+    public double Input { get; set; }
+    public double Output { get; set; }
+    [JsonPropertyName("cache_read")] public double CacheRead { get; set; }
+    [JsonPropertyName("cache_write")] public double CacheWrite { get; set; }
+    [JsonPropertyName("cache_write_1h")] public double? CacheWrite1h { get; set; }
 }
 
 public sealed class KeyState
@@ -391,14 +530,41 @@ public sealed class ModelJson
 {
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
+    /// <summary>The model's own name, when the user gave it another.</summary>
+    public string? Default { get; set; }
     public string Icon { get; set; } = "";
     /// <summary>Exposed to agents (modelJSON's "on").</summary>
     public bool On { get; set; }
     /// <summary>Its context window before the user's, in tokens.</summary>
     public int Listed { get; set; }
     public int Context { get; set; }
+    /// <summary>The reply limit agents are told.</summary>
+    public int Output { get; set; }
+    /// <summary>The reasoning levels it takes.</summary>
+    public List<string>? Efforts { get; set; }
+    public List<string>? Kept { get; set; }
+    public bool Given { get; set; }
+    public bool Reasonless { get; set; }
+    /// <summary>Agents are told it can see images.</summary>
+    public bool Images { get; set; }
+    public bool ImageSet { get; set; }
     public bool Free { get; set; }
+    /// <summary>The credits a request costs the subscription, as a multiple.</summary>
+    public double Rate { get; set; }
+    public double RateWas { get; set; }
+    /// <summary>The one API the user said it is asked on.</summary>
+    public string? Api { get; set; }
+    /// <summary>The APIs its vendor's list says it is served on.</summary>
+    public List<string>? Auto { get; set; }
+    /// <summary>The provider has a URL for none of the APIs it is on: agents
+    /// aren't offered it.</summary>
+    public bool NoApi { get; set; }
+    public string? Same { get; set; }
+    /// <summary>What the user said it makes: image or video.</summary>
+    public string? Kind { get; set; }
     public string? Desktop { get; set; }
+    public PriceJson? Price { get; set; }
+    public PriceJson? List { get; set; }
 }
 
 public sealed class ProviderAgent
@@ -406,6 +572,11 @@ public sealed class ProviderAgent
     public string Agent { get; set; } = "";
     public string AgentName { get; set; } = "";
     public string AgentIcon { get; set; } = "";
+    /// <summary>This agent is on one of this provider's models now.</summary>
+    public bool Current { get; set; }
+    public string? Model { get; set; }
+    /// <summary>Through this routing group, one of whose members it is.</summary>
+    public string? Group { get; set; }
 }
 
 public sealed class AccountJson
@@ -413,13 +584,61 @@ public sealed class AccountJson
     public string User { get; set; } = "";
     public string Plan { get; set; } = "";
     public string Name { get; set; } = "";
+    /// <summary>The agent's id (codex, copilot), for the account's own words.</summary>
+    public string Agent { get; set; } = "";
+    /// <summary>The agent's name, for "from Codex CLI's sign-in".</summary>
+    public string AgentName { get; set; } = "";
+    public string AgentIcon { get; set; } = "";
+    /// <summary>The agent's accounts magpie remembers, to switch between.</summary>
+    public List<LoginJson>? Logins { get; set; }
+    /// <summary>A plugin's provider id, for a plugin beside a built-in.</summary>
+    public string? Builtin { get; set; }
+    /// <summary>The distro Claude Code runs in, on a Windows with none of its
+    /// own.</summary>
+    public string? Wsl { get; set; }
+}
+
+/// <summary>provider.Login: one saved account of an agent.</summary>
+public sealed class LoginJson
+{
+    public string Agent { get; set; } = "";
+    public string User { get; set; } = "";
+    public string? Plan { get; set; }
+    public DateTimeOffset Seen { get; set; }
+    /// <summary>The agent is signed in to this one now.</summary>
+    public bool Active { get; set; }
+    /// <summary>In use: the active one, or next in line.</summary>
+    public bool On { get; set; }
+    /// <summary>The vendor refused to refresh its sign-in: it has to be
+    /// signed in again.</summary>
+    public string? Lapsed { get; set; }
+    /// <summary>The agent's own sign-in, which magpie only reads.</summary>
+    public bool Own { get; set; }
+    /// <summary>The account the agent is signed in to, passed over by the
+    /// gateway while another is on.</summary>
+    public bool Paused { get; set; }
+    /// <summary>The account magpie signed the agent out of when it was spent,
+    /// and signs it back in to once it has room again.</summary>
+    public bool Returns { get; set; }
 }
 
 public sealed class MoveJson
 {
     public string Package { get; set; } = "";
+    /// <summary>"" (built-in, never moved), "plugin", "back" or "failed".</summary>
     public string State { get; set; } = "";
     public string? Error { get; set; }
+    public MoveWhyJson? Why { get; set; }
+}
+
+/// <summary>provider.MoveWhy: a failed move's reason, said in the reader's
+/// language from what it names.</summary>
+public sealed class MoveWhyJson
+{
+    public string Kind { get; set; } = "";
+    public string? Version { get; set; }
+    public string? Min { get; set; }
+    public string? Models { get; set; }
 }
 
 public sealed class PresetJson
@@ -427,9 +646,60 @@ public sealed class PresetJson
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string Icon { get; set; } = "";
+    /// <summary>"vendor", "relay", "local", "remote" or "partner".</summary>
+    public string Kind { get; set; } = "";
     public string Website { get; set; } = "";
-    public string Group { get; set; } = "";
+    public string KeysUrl { get; set; } = "";
+    public string Chat { get; set; } = "";
+    public string Responses { get; set; } = "";
+    public string Anthropic { get; set; } = "";
+    public string? Decide { get; set; }
+    public bool NoKey { get; set; }
+    public string? KeyHint { get; set; }
+    public bool Sponsored { get; set; }
+    /// <summary>One line under the name.</summary>
+    public string? Note { get; set; }
+    /// <summary>The add sheet's name for it, when Name is long.</summary>
+    public string? Short { get; set; }
+    /// <summary>The base-URL choices a relay's regions or a vendor's plans
+    /// make.</summary>
+    public List<RegionJson>? Regions { get; set; }
+    public string? RegionLabel { get; set; }
+    public List<string>? HeaderHints { get; set; }
+    /// <summary>What the plan's models' ids start with; the rest of the
+    /// vendor's list is left out.</summary>
+    public string? Only { get; set; }
+    public List<string>? Models { get; set; }
+    /// <summary>The vendor has no list to ask for; Models are its list.</summary>
+    public bool NoList { get; set; }
+    /// <summary>An example of the address the user's resource is at (Azure).</summary>
+    public string? Endpoint { get; set; }
+    public string? EndpointHint { get; set; }
+    public string? EndpointNeeded { get; set; }
     public bool Added { get; set; }
+    public bool ZhipuTeam { get; set; }
+    public bool AccessKey { get; set; }
+    public string? AccessKeyVendor { get; set; }
+    public List<string>? AccessKeyRegions { get; set; }
+    public bool Vertex { get; set; }
+    public bool OwnClient { get; set; }
+    /// <summary>A partner's tagline by language.</summary>
+    public Dictionary<string, string>? Notes { get; set; }
+    public List<string>? Langs { get; set; }
+    /// <summary>A partner listed since the add sheet last showed.</summary>
+    public bool New { get; set; }
+}
+
+public sealed class RegionJson
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Chat { get; set; } = "";
+    public string Responses { get; set; } = "";
+    public string Anthropic { get; set; } = "";
+    public bool Lists { get; set; }
+    public string? KeysUrl { get; set; }
+    public string? Website { get; set; }
 }
 
 public sealed class ExcludedJson
@@ -437,6 +707,121 @@ public sealed class ExcludedJson
     public string Agent { get; set; } = "";
     public string User { get; set; } = "";
     public string Why { get; set; } = "";
+    /// <summary>The agent's name and logo, as the row shows them.</summary>
+    public string AgentName { get; set; } = "";
+    public string AgentIcon { get; set; } = "";
+    /// <summary>The provider the removed accounts stand behind, to add back.</summary>
+    public string? Provider { get; set; }
+    /// <summary>Dismissed: the Add sheet offers it back.</summary>
+    public bool Quiet { get; set; }
+    /// <summary>Signed out here: its saved accounts are listed nowhere else.</summary>
+    public bool SignedOut { get; set; }
+    public List<string>? Users { get; set; }
+    /// <summary>The keychain didn't give its sign-in: read it once more.</summary>
+    public bool Retry { get; set; }
+}
+
+/// <summary>provider.SignInState: a subscription's sign-in as it stands.</summary>
+public class SignInStateJson
+{
+    public string Id { get; set; } = "";
+    public string Agent { get; set; } = "";
+    /// <summary>The vendor's page, to open or copy.</summary>
+    public string Url { get; set; } = "";
+    /// <summary>What to type there, for a device code.</summary>
+    public string? Code { get; set; }
+    /// <summary>"installing", "waiting", "done", "failed" or "canceled".</summary>
+    public string State { get; set; } = "";
+    /// <summary>A callback URL can also finish this sign-in.</summary>
+    public bool PasteCallback { get; set; }
+    /// <summary>A plugin's sign-in finished by the code its page shows.</summary>
+    public bool PasteCode { get; set; }
+    /// <summary>A sign-in an API key made on KeysUrl also finishes.</summary>
+    public bool PasteKey { get; set; }
+    public string? KeysUrl { get; set; }
+    /// <summary>A plugin's words for its page.</summary>
+    public string? Instructions { get; set; }
+    /// <summary>The CLI being installed before the sign-in can start.</summary>
+    public string? Installing { get; set; }
+    public string? User { get; set; }
+    public string? Plan { get; set; }
+    /// <summary>The agent was signed in to it too.</summary>
+    public bool Using { get; set; }
+    /// <summary>An account listed already: its sign-in was renewed.</summary>
+    public bool Again { get; set; }
+    public string? Error { get; set; }
+    /// <summary>Why the port the browser is sent back to couldn't be opened:
+    /// "reserved" or "busy".</summary>
+    public string? CallbackBlocked { get; set; }
+    public int CallbackPort { get; set; }
+    public string? Proxy { get; set; }
+}
+
+/// <summary>The answer to POST /api/signin, with why its page didn't open.</summary>
+public sealed class SignInOpenedJson : SignInStateJson
+{
+    public string? OpenError { get; set; }
+}
+
+/// <summary>What POST /api/signin/import answered (provider.ImportedAccount).</summary>
+public sealed class ImportedAccountJson
+{
+    /// <summary>The account's email, or "#n" (its place in the file).</summary>
+    public string User { get; set; } = "";
+    /// <summary>"added", "updated", "exists" or "failed".</summary>
+    public string Status { get; set; } = "";
+    public string? Plan { get; set; }
+    public string? Error { get; set; }
+    /// <summary>The place (from 1) of a file that held no account.</summary>
+    public int File { get; set; }
+}
+
+public sealed class ImportAnswerJson
+{
+    public List<ImportedAccountJson> Results { get; set; } = [];
+    public ProvidersJson Providers { get; set; } = new();
+}
+
+/// <summary>A plugin provider's way to sign in (plugin.Method).</summary>
+public sealed class PluginMethodJson
+{
+    /// <summary>"browser", "api" or "oauth".</summary>
+    public string Type { get; set; } = "";
+    public string Label { get; set; } = "";
+    public string? Placeholder { get; set; }
+}
+
+/// <summary>A plugin's question, from POST /api/plugin-signin/prompt.</summary>
+public sealed class PluginPromptJson
+{
+    /// <summary>"text", "select" or "password".</summary>
+    public string Type { get; set; } = "";
+    public string Key { get; set; } = "";
+    public string Message { get; set; } = "";
+    public string? Placeholder { get; set; }
+    public List<PluginPromptOptionJson>? Options { get; set; }
+}
+
+public sealed class PluginPromptOptionJson
+{
+    public string Label { get; set; } = "";
+    public string Value { get; set; } = "";
+    public string? Hint { get; set; }
+}
+
+/// <summary>The answer to POST /api/plugin-signin/prompt.</summary>
+public sealed class PluginPromptAnswerJson
+{
+    /// <summary>The next question, when there is one.</summary>
+    public PluginPromptJson? Prompt { get; set; }
+    public string? Error { get; set; }
+}
+
+/// <summary>pluginSubJSON's methods, which Api.cs's PluginSubJson lacked:
+/// the ways a plugin's provider can be signed in to.</summary>
+public sealed class PluginMethodListJson
+{
+    public List<PluginMethodJson> Methods { get; set; } = [];
 }
 
 public sealed class GatewayJson
@@ -534,6 +919,8 @@ public sealed class PluginSubJson
     public string Spec { get; set; } = "";
     public bool SignedIn { get; set; }
     public int Models { get; set; }
+    /// <summary>The ways this provider can be signed in to.</summary>
+    public List<PluginMethodJson> Methods { get; set; } = [];
 }
 
 // ---- /api/usage and /api/usage/quotas (usageapi, provider) ----
@@ -1262,16 +1649,6 @@ public sealed class PluginsJson
     public bool Mirror { get; set; }
     /// <summary>The built-ins with accounts a plugin could run (provider.MoveCandidate).</summary>
     public List<MoveCandidateJson> Movable { get; set; } = [];
-}
-
-/// <summary>A deprecated built-in's accounts, which a plugin can run instead.</summary>
-public sealed class MoveCandidateJson
-{
-    public string Id { get; set; } = "";
-    public string Name { get; set; } = "";
-    public string Package { get; set; } = "";
-    public int Accounts { get; set; }
-    public string? Error { get; set; }
 }
 
 public sealed class PluginEntryJson
